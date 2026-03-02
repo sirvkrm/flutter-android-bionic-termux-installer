@@ -1,0 +1,68 @@
+diff --git a/packages/flutter_tools/lib/src/android/android_sdk.dart b/packages/flutter_tools/lib/src/android/android_sdk.dart
+index 91df3ab..64fe4f9 100644
+--- a/packages/flutter_tools/lib/src/android/android_sdk.dart
++++ b/packages/flutter_tools/lib/src/android/android_sdk.dart
+@@ -89,7 +89,7 @@ class AndroidSdk {
+         androidHomeDir = globals.platform.environment[kAndroidHome];
+       } else if (globals.platform.environment.containsKey(kAndroidSdkRoot)) {
+         androidHomeDir = globals.platform.environment[kAndroidSdkRoot];
+-      } else if (globals.platform.isLinux) {
++      } else if (globals.platform.isLinuxLike) {
+         if (globals.fsUtils.homeDirPath != null) {
+           androidHomeDir = globals.fs.path.join(globals.fsUtils.homeDirPath!, 'Android', 'Sdk');
+         }
+diff --git a/packages/flutter_tools/lib/src/artifacts.dart b/packages/flutter_tools/lib/src/artifacts.dart
+index 3cb6fd2..d604b3c 100644
+--- a/packages/flutter_tools/lib/src/artifacts.dart
++++ b/packages/flutter_tools/lib/src/artifacts.dart
+@@ -929,7 +929,7 @@ TargetPlatform _currentHostPlatform(Platform platform, OperatingSystemUtils oper
+   if (platform.isMacOS) {
+     return TargetPlatform.darwin;
+   }
+-  if (platform.isLinux) {
++  if (platform.isLinuxLike) {
+     return switch (operatingSystemUtils.hostPlatform) {
+       HostPlatform.linux_x64 => TargetPlatform.linux_x64,
+       HostPlatform.linux_riscv64 => TargetPlatform.linux_riscv64,
+diff --git a/packages/flutter_tools/lib/src/base/platform.dart b/packages/flutter_tools/lib/src/base/platform.dart
+index 55aae58..6b63257 100644
+--- a/packages/flutter_tools/lib/src/base/platform.dart
++++ b/packages/flutter_tools/lib/src/base/platform.dart
+@@ -31,6 +31,10 @@ abstract class Platform {
+   /// True if the operating system is Linux.
+   bool get isLinux => operatingSystem == 'linux';
+ 
++  /// True if the operating system uses the Linux userspace conventions that
++  /// the Flutter tool relies on for host-side artifacts and paths.
++  bool get isLinuxLike => isLinux || isAndroid;
++
+   /// True if the operating system is OS X.
+   bool get isMacOS => operatingSystem == 'macos';
+ 
+diff --git a/packages/flutter_tools/lib/src/build_info.dart b/packages/flutter_tools/lib/src/build_info.dart
+index e24464c..c216047 100644
+--- a/packages/flutter_tools/lib/src/build_info.dart
++++ b/packages/flutter_tools/lib/src/build_info.dart
+@@ -903,7 +903,7 @@ HostPlatform getCurrentHostPlatform() {
+       DarwinArch.armv7 => throw Exception('Unsupported macOS arch "amv7"'),
+     };
+   }
+-  if (globals.platform.isLinux) {
++  if (globals.platform.isLinuxLike) {
+     // support x64 and arm64 architecture.
+     return globals.os.hostPlatform;
+   }
+diff --git a/packages/flutter_tools/lib/src/web/workflow.dart b/packages/flutter_tools/lib/src/web/workflow.dart
+index bf35375..5533196 100644
+--- a/packages/flutter_tools/lib/src/web/workflow.dart
++++ b/packages/flutter_tools/lib/src/web/workflow.dart
+@@ -16,7 +16,8 @@ class WebWorkflow extends Workflow {
+ 
+   @override
+   bool get appliesToHostPlatform =>
+-      _featureFlags.isWebEnabled && (_platform.isWindows || _platform.isMacOS || _platform.isLinux);
++      _featureFlags.isWebEnabled &&
++      (_platform.isWindows || _platform.isMacOS || _platform.isLinuxLike);
+ 
+   @override
+   bool get canLaunchDevices => _featureFlags.isWebEnabled;

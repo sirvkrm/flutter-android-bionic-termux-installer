@@ -1,116 +1,100 @@
-# Flutter Android Bionic Termux Installer
+# Flutter Termux Installer
 
-This repo installs the prebuilt Flutter Android bionic engine bundles published from:
+This repo installs a full Flutter SDK checkout for Termux-style Android shells and overlays it with Android-bionic host tools built from the Flutter engine.
+
+It pulls the host bundle from:
 
 - `https://github.com/sirvkrm/flutter-android-bionic-builder`
 
-It is focused on Termux and Linux shell use. By default it:
+The host bundle provides the pieces the stock Flutter SDK does not ship for Android-hosted terminals:
 
-- detects your current ABI
-- fetches the latest release
-- downloads the matching per-ABI bundle
-- extracts it under your install root
-- extracts `libflutter.so`
-- writes an `env.sh` file you can source
+- `bin/cache/dart-sdk` built for Android bionic `aarch64`
+- `bin/cache/artifacts/engine/linux-arm64/font-subset`
+- `bin/cache/artifacts/engine/linux-arm64/const_finder.dart.snapshot`
+- `bin/cache/artifacts/engine/android-arm-profile/linux-arm64/gen_snapshot`
 
-## Current Flutter Requirements
+The installer also applies a small Flutter framework patch so the tool treats Termux as a Linux-like host for host-platform selection and Android SDK path discovery.
 
-Official Flutter docs currently require, on a Linux host:
+## What It Does
 
-- Base Flutter install:
-  - Flutter SDK
-  - `curl`
-  - `git`
-  - `unzip`
-  - `xz`
-  - `zip`
-  - `libglu1-mesa`
-- Android APK builds:
-  - Android Studio or equivalent Android SDK command-line setup
-  - installed Android SDK components
-  - accepted Android SDK licenses
-- Web builds:
-  - Flutter SDK
-  - a browser (Chrome or Edge are the standard local debug targets)
-- Linux desktop builds:
-  - `clang`
-  - `cmake`
-  - `ninja-build`
-  - `pkg-config`
-  - `libgtk-3-dev`
-  - `libstdc++-12-dev`
+By default, `./install.sh`:
 
-For a full Flutter SDK check, always run:
+- clones the official Flutter SDK (`stable`) if it is not already present
+- downloads the latest Termux host bundle release asset
+- extracts the bundle
+- applies the Termux host compatibility patch
+- overlays the bionic host tools into the Flutter SDK cache
+- writes `env.sh`
+- writes a `flutter-termux` wrapper in `bin/`
 
-```bash
-flutter doctor -v
-```
+## Current Scope
 
-## Termux Requirements
+Current validated host bundle target:
 
-The installer can auto-install these through `pkg` when needed:
+- `arm64` Android / Termux hosts
 
+This is aimed at running the Flutter tool itself inside Termux. Android target runtime artifacts still come from the normal Flutter cache flow (`flutter precache --android` or first use).
+
+## Requirements
+
+The installer itself needs:
+
+- `git`
 - `tar`
+- `python3`
 - `unzip`
-- `python`
 
-You can also install them manually:
+On Termux it can install missing prerequisites automatically with `pkg`.
 
-```bash
-pkg install -y tar unzip python curl
-```
+For actual Flutter app builds you still need the normal platform dependencies:
 
-`curl` is optional because the installer can fall back to `python3` for downloads.
+- Android APK builds:
+  - Java/JDK
+  - Android SDK command-line tools or Android Studio
+  - accepted Android licenses
+- Web builds:
+  - Flutter web artifacts (`flutter precache --web`)
+  - a browser for local debug if you want `flutter run -d chrome`
 
 ## Install
-
-Clone this repo:
 
 ```bash
 git clone https://github.com/sirvkrm/flutter-android-bionic-termux-installer.git
 cd flutter-android-bionic-termux-installer
 chmod +x install.sh
-```
-
-Install the latest matching ABI bundle:
-
-```bash
 ./install.sh
 ```
 
-On a typical Termux device this installs under:
+Default install root on Termux:
 
 ```bash
-$PREFIX/opt/flutter-bionic
+$PREFIX/opt/flutter-termux
 ```
 
-## Choose What To Download
+That produces:
 
-Install the latest bundle for a specific ABI:
+- `flutter/` for the Flutter SDK checkout
+- `env.sh`
+- `bin/flutter-termux`
 
-```bash
-./install.sh --abi arm64-v8a
-./install.sh --abi armeabi-v7a
-./install.sh --abi x86
-./install.sh --abi x86_64
-```
+## Choose A Release
 
-Install the combined all-ABI bundle:
-
-```bash
-./install.sh --all
-```
-
-Install from a specific release tag:
+Install a specific tag:
 
 ```bash
 ./install.sh --tag v2026.03.02
 ```
 
-Install a specific asset name:
+Choose an asset interactively:
 
 ```bash
-./install.sh --tag v2026.03.02 --asset flutter-android-bionic-debug-arm64-v8a-20260302.tar.gz
+./install.sh --tag v2026.03.02 --interactive
+```
+
+Install a specific host bundle asset:
+
+```bash
+./install.sh --tag v2026.03.02 --asset flutter-android-bionic-termux-host-arm64-20260302.tar.gz
 ```
 
 List release tags:
@@ -119,61 +103,75 @@ List release tags:
 ./install.sh --list-releases
 ```
 
-Choose interactively from the assets in a release:
+## Flutter SDK Options
+
+Use a different install root:
 
 ```bash
-./install.sh --tag v2026.03.02 --interactive
+./install.sh --install-root "$HOME/my-flutter-termux"
+```
+
+Reuse or target a different Flutter checkout path:
+
+```bash
+./install.sh --flutter-dir "$HOME/flutter-termux-sdk"
+```
+
+Clone a different Flutter ref:
+
+```bash
+./install.sh --flutter-ref master
+```
+
+Run Android precache immediately after install:
+
+```bash
+./install.sh --precache
 ```
 
 ## After Install
 
-Load the installed environment:
+Load the environment:
 
 ```bash
-source "$PREFIX/opt/flutter-bionic/env.sh"
+source "$PREFIX/opt/flutter-termux/env.sh"
 ```
 
-This exports:
-
-- `FLUTTER_BIONIC_HOME`
-- `FLUTTER_BIONIC_RELEASE_TAG`
-- `FLUTTER_BIONIC_ASSET`
-- `FLUTTER_BIONIC_ABI`
-- `FLUTTER_BIONIC_EMBEDDING_JAR`
-- `FLUTTER_BIONIC_NATIVE_JAR`
-- `FLUTTER_BIONIC_LIB`
-- `FLUTTER_BIONIC_GEN_SNAPSHOT`
-
-You can then inspect the installed files:
+Or use the wrapper directly:
 
 ```bash
-echo "$FLUTTER_BIONIC_LIB"
-ls -l "$FLUTTER_BIONIC_HOME/embedding"
+$PREFIX/opt/flutter-termux/bin/flutter-termux --version
 ```
 
-## Android Project Use
-
-Add these jars to your Android project:
-
-- `flutter_embedding_classes.jar`
-- the ABI-specific native jar selected by the installer
-
-A concrete Gradle example is included here:
-
-- `examples/ANDROID_APP_SETUP.md`
-
-If you need the raw shared library directly, the installer already extracts it into:
+Recommended first checks:
 
 ```bash
-$FLUTTER_BIONIC_HOME/runtime/lib/<abi>/libflutter.so
+flutter --version
+flutter doctor -v
+flutter precache --android
 ```
 
-## Important Note About `gen_snapshot`
+If your Android SDK was not auto-detected, set these in `env.sh`:
 
-The published bundles include the Linux x64 `gen_snapshot` binary from the build machine. That is useful on Linux x64 hosts, but it will not run natively on most ARM Termux phones.
+```bash
+export ANDROID_HOME="$HOME/Android/Sdk"
+export ANDROID_SDK_ROOT="$HOME/Android/Sdk"
+```
 
-The main Termux use case here is:
+If your NDK is installed in Termux build-tools, also set:
 
-- fetching the correct prebuilt Android engine artifacts
-- extracting `libflutter.so`
-- wiring those artifacts into an Android project or custom embedder
+```bash
+export ANDROID_NDK_HOME="$HOME/.build-tools/android/android-ndk-r27c"
+```
+
+## Patch Files
+
+The Flutter framework patch applied during install is stored here:
+
+- `patches/0001-termux-android-host-support.patch`
+
+## Limitations
+
+- The current host bundle is `arm64` only.
+- This installer patches the Flutter framework checkout locally; if you switch branches or reset the SDK repo, re-run the installer.
+- The builder repo must publish the `flutter-android-bionic-termux-host-arm64-*.tar.gz` asset for the selected release tag.

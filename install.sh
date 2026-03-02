@@ -4,7 +4,10 @@ set -euo pipefail
 SCRIPT_DIR=$(CDPATH= cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)
 DEFAULT_OWNER="sirvkrm"
 DEFAULT_REPO="flutter-android-bionic-builder"
-DEFAULT_INSTALL_ROOT="${PREFIX:-$HOME/.local}/opt/flutter-bionic"
+DEFAULT_INSTALL_ROOT="${PREFIX:-$HOME/.local}/opt/flutter-termux"
+DEFAULT_FLUTTER_REPO="https://github.com/flutter/flutter.git"
+DEFAULT_FLUTTER_REF="stable"
+PATCH_FILE="$SCRIPT_DIR/patches/0001-termux-android-host-support.patch"
 
 note() {
   printf '%s\n' "$*"
@@ -21,27 +24,30 @@ Usage:
   ./install.sh
   ./install.sh --interactive
   ./install.sh --tag v2026.03.02
-  ./install.sh --abi arm64-v8a
-  ./install.sh --all
-  ./install.sh --asset flutter-android-bionic-debug-arm64-v8a-20260302.tar.gz
+  ./install.sh --asset flutter-android-bionic-termux-host-arm64-20260302.tar.gz
   ./install.sh --list-releases
 
 Defaults:
-  - downloads the latest release from sirvkrm/flutter-android-bionic-builder
-  - auto-detects the current device ABI
-  - installs under $PREFIX/opt/flutter-bionic on Termux
+  - downloads the latest Termux host bundle from sirvkrm/flutter-android-bionic-builder
+  - installs a Flutter SDK checkout under $PREFIX/opt/flutter-termux/flutter
+  - applies the Termux host compatibility patch
+  - overlays the Android-bionic Dart SDK and host tools into bin/cache
+  - writes env.sh and a flutter-termux wrapper script
 
 Options:
   --interactive        Choose a release asset from a numbered list
   --list-releases      Print available release tags and exit
   --tag TAG            Install from a specific release tag
-  --asset NAME         Install a specific asset name from the selected tag
-  --abi ABI            Choose ABI: arm64-v8a, armeabi-v7a, x86, x86_64
-  --all                Prefer the combined all-ABI bundle
+  --asset NAME         Install a specific host bundle asset from the selected tag
+  --abi ABI            Host arch alias (currently only arm64-v8a)
   --install-root DIR   Override the installation root
+  --flutter-dir DIR    Override the Flutter SDK checkout path
+  --flutter-repo URL   Override the Flutter framework repo (default: official repo)
+  --flutter-ref REF    Override the Flutter git ref to clone (default: stable)
   --owner NAME         Override the GitHub owner (default: sirvkrm)
   --repo NAME          Override the GitHub repo (default: flutter-android-bionic-builder)
   --keep-archive       Keep the downloaded tarball in tmp/
+  --precache           Run flutter precache --android after install
   -h, --help           Show this help
 EOF
 }
@@ -54,11 +60,11 @@ command_missing() {
   ! command -v "$1" >/dev/null 2>&1
 }
 
-ensure_termux_prereqs() {
+ensure_prereqs() {
   local missing=()
   local pkg_name
 
-  for pkg_name in tar unzip python; do
+  for pkg_name in git tar python unzip; do
     case "$pkg_name" in
       python)
         if command_missing python3; then
@@ -132,42 +138,24 @@ with tarfile.open(archive_path, "r:gz") as tf:
 PY
 }
 
-detect_abi() {
+detect_host_bundle_arch() {
   case "$(uname -m)" in
     aarch64|arm64)
-      printf 'arm64-v8a\n'
-      ;;
-    armv7l|armv8l)
-      printf 'armeabi-v7a\n'
-      ;;
-    x86_64|amd64)
-      printf 'x86_64\n'
-      ;;
-    i?86)
-      printf 'x86\n'
+      printf 'arm64\n'
       ;;
     *)
-      die "unsupported host architecture: $(uname -m)"
+      die "unsupported host architecture for the Termux bundle: $(uname -m)"
       ;;
   esac
 }
 
-normalize_abi() {
+normalize_host_bundle_arch() {
   case "${1,,}" in
     arm64|arm64-v8a|aarch64)
-      printf 'arm64-v8a\n'
-      ;;
-    arm|armeabi|armeabi-v7a)
-      printf 'armeabi-v7a\n'
-      ;;
-    x86)
-      printf 'x86\n'
-      ;;
-    x64|x86_64)
-      printf 'x86_64\n'
+      printf 'arm64\n'
       ;;
     *)
-      die "unsupported ABI: $1"
+      die "unsupported host bundle architecture: $1"
       ;;
   esac
 }
@@ -188,7 +176,7 @@ import urllib.request
 mode, owner, repo, tag, asset_name = sys.argv[1:6]
 headers = {
     "Accept": "application/vnd.github+json",
-    "User-Agent": "flutter-bionic-termux-installer",
+    "User-Agent": "flutter-termux-installer",
 }
 
 def fetch(url):
@@ -250,55 +238,8 @@ choose_interactively() {
 }
 
 preferred_asset_pattern() {
-  local abi=$1
-  local want_all=$2
-
-  if [[ "$want_all" == "1" ]]; then
-    printf 'flutter-android-bionic-debug-all-abis-*.tar.gz\n'
-    return 0
-  fi
-
-  printf 'flutter-android-bionic-debug-%s-*.tar.gz\n' "$abi"
-}
-
-asset_to_abi() {
-  case "$1" in
-    flutter-android-bionic-debug-arm64-v8a-*.tar.gz)
-      printf 'arm64-v8a\n'
-      ;;
-    flutter-android-bionic-debug-armeabi-v7a-*.tar.gz)
-      printf 'armeabi-v7a\n'
-      ;;
-    flutter-android-bionic-debug-x86_64-*.tar.gz)
-      printf 'x86_64\n'
-      ;;
-    flutter-android-bionic-debug-x86-*.tar.gz)
-      printf 'x86\n'
-      ;;
-    *)
-      return 1
-      ;;
-  esac
-}
-
-abi_native_jar_name() {
-  case "$1" in
-    arm64-v8a)
-      printf 'arm64_v8a_debug.jar\n'
-      ;;
-    armeabi-v7a)
-      printf 'armeabi_v7a_debug.jar\n'
-      ;;
-    x86)
-      printf 'x86_debug.jar\n'
-      ;;
-    x86_64)
-      printf 'x86_64_debug.jar\n'
-      ;;
-    *)
-      die "unsupported ABI: $1"
-      ;;
-  esac
+  local host_arch=$1
+  printf 'flutter-android-bionic-termux-host-%s-*.tar.gz\n' "$host_arch"
 }
 
 resolve_asset_name() {
@@ -306,9 +247,8 @@ resolve_asset_name() {
   local repo=$2
   local tag=$3
   local requested_asset=$4
-  local abi=$5
-  local want_all=$6
-  local interactive=$7
+  local host_arch=$5
+  local interactive=$6
   local preferred_pattern
   local selected=""
   local -a assets=()
@@ -336,7 +276,7 @@ resolve_asset_name() {
     return 0
   fi
 
-  preferred_pattern=$(preferred_asset_pattern "$abi" "$want_all")
+  preferred_pattern=$(preferred_asset_pattern "$host_arch")
   for line in "${assets[@]}"; do
     if [[ "$line" == $preferred_pattern ]]; then
       selected=$line
@@ -344,53 +284,156 @@ resolve_asset_name() {
     fi
   done
 
-  if [[ -z "$selected" && "$want_all" == "0" ]]; then
-    preferred_pattern=$(preferred_asset_pattern "$abi" "1")
-    for line in "${assets[@]}"; do
-      if [[ "$line" == $preferred_pattern ]]; then
-        selected=$line
-        break
-      fi
-    done
+  [[ -n "$selected" ]] || die "no matching host bundle found for $host_arch in $tag"
+  printf '%s\n' "$selected"
+}
+
+detect_android_sdk() {
+  local candidates=()
+
+  if [[ -n "${ANDROID_HOME:-}" ]]; then
+    candidates+=("$ANDROID_HOME")
+  fi
+  if [[ -n "${ANDROID_SDK_ROOT:-}" ]]; then
+    candidates+=("$ANDROID_SDK_ROOT")
   fi
 
-  [[ -n "$selected" ]] || die "no matching asset found for ABI $abi in $tag"
-  printf '%s\n' "$selected"
+  candidates+=(
+    "$HOME/Android/Sdk"
+    "$HOME/.local/share/android-sdk"
+  )
+
+  local candidate
+  for candidate in "${candidates[@]}"; do
+    if [[ -n "$candidate" && -d "$candidate" ]]; then
+      printf '%s\n' "$candidate"
+      return 0
+    fi
+  done
+
+  return 1
+}
+
+detect_android_ndk() {
+  local candidates=()
+
+  if [[ -n "${ANDROID_NDK_HOME:-}" ]]; then
+    candidates+=("$ANDROID_NDK_HOME")
+  fi
+
+  candidates+=(
+    "$HOME/.build-tools/android/android-ndk-r27c"
+    "$HOME/Android/Sdk/ndk"
+  )
+
+  local candidate
+  for candidate in "${candidates[@]}"; do
+    if [[ -n "$candidate" && -d "$candidate/toolchains/llvm/prebuilt" ]]; then
+      printf '%s\n' "$candidate"
+      return 0
+    fi
+  done
+
+  return 1
+}
+
+ensure_flutter_sdk() {
+  local flutter_repo=$1
+  local flutter_ref=$2
+  local flutter_dir=$3
+
+  if [[ -d "$flutter_dir/.git" ]]; then
+    note "Using existing Flutter SDK checkout: $flutter_dir"
+    return 0
+  fi
+
+  mkdir -p "$(dirname "$flutter_dir")"
+  note "Cloning Flutter SDK ($flutter_ref) into $flutter_dir"
+  git clone --depth 1 --branch "$flutter_ref" "$flutter_repo" "$flutter_dir"
+}
+
+apply_patch_if_needed() {
+  local repo_dir=$1
+  local patch_file=$2
+
+  [[ -f "$patch_file" ]] || die "missing patch file: $patch_file"
+
+  if git -C "$repo_dir" apply --reverse --check "$patch_file" >/dev/null 2>&1; then
+    return 0
+  fi
+
+  if git -C "$repo_dir" apply --check "$patch_file" >/dev/null 2>&1; then
+    note "Applying $(basename "$patch_file")"
+    git -C "$repo_dir" apply "$patch_file"
+    return 0
+  fi
+
+  die "unable to apply $(basename "$patch_file") cleanly in $repo_dir"
+}
+
+copy_overlay_dir() {
+  local src_dir=$1
+  local dest_dir=$2
+
+  [[ -d "$src_dir" ]] || die "missing overlay directory: $src_dir"
+  mkdir -p "$dest_dir"
+  cp -a "$src_dir/." "$dest_dir/"
 }
 
 write_env_file() {
   local env_file=$1
-  local install_dir=$2
-  local tag=$3
-  local asset=$4
-  local abi=$5
-  local native_jar=$6
-  local lib_path=$7
-  local gen_snapshot=$8
+  local install_root=$2
+  local flutter_dir=$3
+  local tag=$4
+  local asset=$5
+  local android_sdk=$6
+  local android_ndk=$7
 
-  cat >"$env_file" <<EOF
-export FLUTTER_BIONIC_HOME="$install_dir"
-export FLUTTER_BIONIC_RELEASE_TAG="$tag"
-export FLUTTER_BIONIC_ASSET="$asset"
-export FLUTTER_BIONIC_ABI="$abi"
-export FLUTTER_BIONIC_EMBEDDING_JAR="$install_dir/embedding/flutter_embedding_classes.jar"
-export FLUTTER_BIONIC_NATIVE_JAR="$native_jar"
-export FLUTTER_BIONIC_LIB="$lib_path"
-export FLUTTER_BIONIC_GEN_SNAPSHOT="$gen_snapshot"
+  {
+    printf 'export FLUTTER_TERMUX_HOME="%s"\n' "$install_root"
+    printf 'export FLUTTER_TERMUX_RELEASE_TAG="%s"\n' "$tag"
+    printf 'export FLUTTER_TERMUX_ASSET="%s"\n' "$asset"
+    printf 'export FLUTTER_ROOT="%s"\n' "$flutter_dir"
+    printf 'export PATH="%s/bin:%s/bin:$PATH"\n' "$install_root" "$flutter_dir"
+    if [[ -n "$android_sdk" ]]; then
+      printf 'export ANDROID_HOME="%s"\n' "$android_sdk"
+      printf 'export ANDROID_SDK_ROOT="%s"\n' "$android_sdk"
+    fi
+    if [[ -n "$android_ndk" ]]; then
+      printf 'export ANDROID_NDK_HOME="%s"\n' "$android_ndk"
+    fi
+  } >"$env_file"
+}
+
+write_wrapper() {
+  local wrapper_path=$1
+  local install_root=$2
+
+  mkdir -p "$(dirname "$wrapper_path")"
+  cat >"$wrapper_path" <<EOF
+#!/usr/bin/env bash
+set -euo pipefail
+# shellcheck source=/dev/null
+source "$install_root/env.sh"
+exec "\$FLUTTER_ROOT/bin/flutter" "\$@"
 EOF
+  chmod +x "$wrapper_path"
 }
 
 main() {
   local owner="$DEFAULT_OWNER"
   local repo="$DEFAULT_REPO"
   local install_root="$DEFAULT_INSTALL_ROOT"
+  local flutter_repo="$DEFAULT_FLUTTER_REPO"
+  local flutter_ref="$DEFAULT_FLUTTER_REF"
+  local flutter_dir=""
   local requested_tag=""
   local requested_asset=""
-  local requested_abi=""
+  local requested_host_arch=""
   local list_releases=0
   local interactive=0
-  local want_all=0
   local keep_archive=0
+  local run_precache=0
 
   while (($#)); do
     case "$1" in
@@ -413,15 +456,27 @@ main() {
       --abi)
         shift
         [[ $# -gt 0 ]] || die "--abi requires a value"
-        requested_abi=$(normalize_abi "$1")
-        ;;
-      --all)
-        want_all=1
+        requested_host_arch=$(normalize_host_bundle_arch "$1")
         ;;
       --install-root)
         shift
         [[ $# -gt 0 ]] || die "--install-root requires a value"
         install_root=$1
+        ;;
+      --flutter-dir)
+        shift
+        [[ $# -gt 0 ]] || die "--flutter-dir requires a value"
+        flutter_dir=$1
+        ;;
+      --flutter-repo)
+        shift
+        [[ $# -gt 0 ]] || die "--flutter-repo requires a value"
+        flutter_repo=$1
+        ;;
+      --flutter-ref)
+        shift
+        [[ $# -gt 0 ]] || die "--flutter-ref requires a value"
+        flutter_ref=$1
         ;;
       --owner)
         shift
@@ -436,6 +491,9 @@ main() {
       --keep-archive)
         keep_archive=1
         ;;
+      --precache)
+        run_precache=1
+        ;;
       -h|--help)
         usage
         return 0
@@ -447,21 +505,21 @@ main() {
     shift
   done
 
-  ensure_termux_prereqs
+  ensure_prereqs
 
   if [[ "$list_releases" == "1" ]]; then
     github_release_query "list-releases" "$owner" "$repo"
     return 0
   fi
 
-  local abi
-  abi=${requested_abi:-$(detect_abi)}
+  local host_arch
+  host_arch=${requested_host_arch:-$(detect_host_bundle_arch)}
 
   local tag
   tag=${requested_tag:-$(github_release_query "latest-tag" "$owner" "$repo")}
 
   local asset
-  asset=$(resolve_asset_name "$owner" "$repo" "$tag" "$requested_asset" "$abi" "$want_all" "$interactive")
+  asset=$(resolve_asset_name "$owner" "$repo" "$tag" "$requested_asset" "$host_arch" "$interactive")
 
   local download_url
   download_url=$(github_release_query "asset-url" "$owner" "$repo" "$tag" "$asset")
@@ -473,58 +531,70 @@ main() {
   note "Downloading $asset from $owner/$repo $tag"
   download_to "$download_url" "$archive_path"
 
-  local version_dir="$install_root/releases/$tag"
-  mkdir -p "$version_dir"
+  local release_dir="$install_root/releases/$tag"
+  mkdir -p "$release_dir"
 
   local top_level
   top_level=$(archive_top_level_dir "$archive_path")
   [[ -n "$top_level" ]] || die "unable to inspect archive: $archive_path"
 
-  rm -rf "$version_dir/$top_level"
-  tar -xzf "$archive_path" -C "$version_dir"
+  rm -rf "$release_dir/$top_level"
+  tar -xzf "$archive_path" -C "$release_dir"
 
-  local install_dir="$version_dir/$top_level"
-  local selected_abi="$abi"
-  local native_jar_name
-  local native_jar
+  local bundle_dir="$release_dir/$top_level"
+  [[ -d "$bundle_dir/overlay" ]] || die "host bundle is missing overlay/: $bundle_dir"
 
-  if asset_to_abi "$asset" >/dev/null 2>&1; then
-    selected_abi=$(asset_to_abi "$asset")
+  flutter_dir=${flutter_dir:-$install_root/flutter}
+  ensure_flutter_sdk "$flutter_repo" "$flutter_ref" "$flutter_dir"
+  apply_patch_if_needed "$flutter_dir" "$PATCH_FILE"
+  copy_overlay_dir "$bundle_dir/overlay" "$flutter_dir"
+
+  local android_sdk=""
+  local android_ndk=""
+  android_sdk=$(detect_android_sdk || true)
+  android_ndk=$(detect_android_ndk || true)
+
+  local env_file="$install_root/env.sh"
+  local wrapper_path="$install_root/bin/flutter-termux"
+  write_env_file "$env_file" "$install_root" "$flutter_dir" "$tag" "$asset" "$android_sdk" "$android_ndk"
+  write_wrapper "$wrapper_path" "$install_root"
+
+  if [[ "$run_precache" == "1" ]]; then
+    note "Running flutter precache --android"
+    (
+      # shellcheck source=/dev/null
+      source "$env_file"
+      "$FLUTTER_ROOT/bin/flutter" precache --android
+    )
   fi
-
-  native_jar_name=$(abi_native_jar_name "$selected_abi")
-  native_jar="$install_dir/embedding/$native_jar_name"
-  [[ -f "$native_jar" ]] || die "missing native jar: $native_jar"
-
-  local runtime_dir="$install_dir/runtime"
-  mkdir -p "$runtime_dir"
-  unzip -o "$native_jar" "lib/$selected_abi/libflutter.so" -d "$runtime_dir" >/dev/null
-
-  local lib_path="$runtime_dir/lib/$selected_abi/libflutter.so"
-  [[ -f "$lib_path" ]] || die "missing extracted libflutter.so for $selected_abi"
-
-  local gen_snapshot="$install_dir/host-tools/linux-x64/gen_snapshot"
-  local env_file="$install_dir/env.sh"
-  write_env_file "$env_file" "$install_dir" "$tag" "$asset" "$selected_abi" "$native_jar" "$lib_path" "$gen_snapshot"
-
-  mkdir -p "$install_root"
-  ln -sfn "$install_dir" "$install_root/current"
-  ln -sfn "$env_file" "$install_root/env.sh"
 
   if [[ "$keep_archive" != "1" ]]; then
     rm -f "$archive_path"
   fi
 
   note ""
-  note "Installed: $install_dir"
-  note "Current:   $install_root/current"
-  note "ABI:       $selected_abi"
-  note "lib:       $lib_path"
-  note "embedding: $install_dir/embedding/flutter_embedding_classes.jar"
-  note "native jar: $native_jar"
+  note "Installed Flutter SDK: $flutter_dir"
+  note "Applied host bundle:   $bundle_dir"
+  note "Wrapper:              $wrapper_path"
   note ""
   note "Load the environment with:"
-  note "  source \"$install_root/env.sh\""
+  note "  source \"$env_file\""
+  note ""
+  note "Then run:"
+  note "  flutter --version"
+  note "  flutter doctor -v"
+
+  if [[ -n "$android_sdk" ]]; then
+    note ""
+    note "Detected Android SDK:  $android_sdk"
+  else
+    note ""
+    note "Android SDK not auto-detected. Set ANDROID_HOME/ANDROID_SDK_ROOT in env.sh if needed."
+  fi
+
+  if [[ -n "$android_ndk" ]]; then
+    note "Detected Android NDK:  $android_ndk"
+  fi
 }
 
 main "$@"
