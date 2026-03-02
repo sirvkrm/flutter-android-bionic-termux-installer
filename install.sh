@@ -404,6 +404,16 @@ copy_overlay_dir() {
   cp -a "$src_dir/." "$dest_dir/"
 }
 
+prime_flutter_cache_stamps() {
+  local flutter_dir=$1
+  local engine_stamp=""
+
+  "$flutter_dir/bin/internal/update_engine_version.sh"
+  engine_stamp="$flutter_dir/bin/cache/engine.stamp"
+  [[ -f "$engine_stamp" ]] || die "missing engine.stamp after priming Flutter cache"
+  cp -a "$engine_stamp" "$flutter_dir/bin/cache/engine-dart-sdk.stamp"
+}
+
 write_env_file() {
   local env_file=$1
   local install_root=$2
@@ -573,6 +583,7 @@ main() {
   ensure_flutter_sdk "$flutter_repo" "$flutter_ref" "$flutter_dir"
   apply_patch_if_needed "$flutter_dir" "$PATCH_FILE"
   copy_overlay_dir "$bundle_dir/overlay" "$flutter_dir"
+  prime_flutter_cache_stamps "$flutter_dir"
 
   local android_sdk=""
   local android_ndk=""
