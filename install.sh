@@ -60,6 +60,30 @@ command_missing() {
   ! command -v "$1" >/dev/null 2>&1
 }
 
+ensure_git_exec_path() {
+  if ! command -v git >/dev/null 2>&1; then
+    die "git is required"
+  fi
+
+  if [[ -n "${GIT_EXEC_PATH:-}" && -x "${GIT_EXEC_PATH}/git-remote-https" ]]; then
+    return 0
+  fi
+
+  local current_exec_path=""
+  current_exec_path=$(git --exec-path 2>/dev/null || true)
+  if [[ -n "$current_exec_path" && -x "$current_exec_path/git-remote-https" ]]; then
+    export GIT_EXEC_PATH="$current_exec_path"
+    return 0
+  fi
+
+  if [[ -x /snap/codex/21/usr/lib/git-core/git-remote-https ]]; then
+    export GIT_EXEC_PATH=/snap/codex/21/usr/lib/git-core
+    return 0
+  fi
+
+  die "unable to locate git remote helpers; set GIT_EXEC_PATH"
+}
+
 ensure_prereqs() {
   local missing=()
   local pkg_name
@@ -506,6 +530,7 @@ main() {
   done
 
   ensure_prereqs
+  ensure_git_exec_path
 
   if [[ "$list_releases" == "1" ]]; then
     github_release_query "list-releases" "$owner" "$repo"

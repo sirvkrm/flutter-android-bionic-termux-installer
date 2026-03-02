@@ -1,5 +1,5 @@
 diff --git a/packages/flutter_tools/lib/src/android/android_sdk.dart b/packages/flutter_tools/lib/src/android/android_sdk.dart
-index 91df3ab..64fe4f9 100644
+index 91df3aba..64fe4f9c 100644
 --- a/packages/flutter_tools/lib/src/android/android_sdk.dart
 +++ b/packages/flutter_tools/lib/src/android/android_sdk.dart
 @@ -89,7 +89,7 @@ class AndroidSdk {
@@ -12,20 +12,20 @@ index 91df3ab..64fe4f9 100644
            androidHomeDir = globals.fs.path.join(globals.fsUtils.homeDirPath!, 'Android', 'Sdk');
          }
 diff --git a/packages/flutter_tools/lib/src/artifacts.dart b/packages/flutter_tools/lib/src/artifacts.dart
-index 3cb6fd2..d604b3c 100644
+index 545b594e..75e7d7e8 100644
 --- a/packages/flutter_tools/lib/src/artifacts.dart
 +++ b/packages/flutter_tools/lib/src/artifacts.dart
-@@ -929,7 +929,7 @@ TargetPlatform _currentHostPlatform(Platform platform, OperatingSystemUtils oper
+@@ -918,7 +918,7 @@ TargetPlatform _currentHostPlatform(Platform platform, OperatingSystemUtils oper
    if (platform.isMacOS) {
      return TargetPlatform.darwin;
    }
 -  if (platform.isLinux) {
 +  if (platform.isLinuxLike) {
-     return switch (operatingSystemUtils.hostPlatform) {
-       HostPlatform.linux_x64 => TargetPlatform.linux_x64,
-       HostPlatform.linux_riscv64 => TargetPlatform.linux_riscv64,
+     return operatingSystemUtils.hostPlatform == HostPlatform.linux_x64
+         ? TargetPlatform.linux_x64
+         : TargetPlatform.linux_arm64;
 diff --git a/packages/flutter_tools/lib/src/base/platform.dart b/packages/flutter_tools/lib/src/base/platform.dart
-index 55aae58..6b63257 100644
+index 55aae58c..6b632579 100644
 --- a/packages/flutter_tools/lib/src/base/platform.dart
 +++ b/packages/flutter_tools/lib/src/base/platform.dart
 @@ -31,6 +31,10 @@ abstract class Platform {
@@ -40,10 +40,10 @@ index 55aae58..6b63257 100644
    bool get isMacOS => operatingSystem == 'macos';
  
 diff --git a/packages/flutter_tools/lib/src/build_info.dart b/packages/flutter_tools/lib/src/build_info.dart
-index e24464c..c216047 100644
+index 6867be4c..c288f6ad 100644
 --- a/packages/flutter_tools/lib/src/build_info.dart
 +++ b/packages/flutter_tools/lib/src/build_info.dart
-@@ -903,7 +903,7 @@ HostPlatform getCurrentHostPlatform() {
+@@ -852,7 +852,7 @@ HostPlatform getCurrentHostPlatform() {
        DarwinArch.armv7 => throw Exception('Unsupported macOS arch "amv7"'),
      };
    }
@@ -53,7 +53,7 @@ index e24464c..c216047 100644
      return globals.os.hostPlatform;
    }
 diff --git a/packages/flutter_tools/lib/src/web/workflow.dart b/packages/flutter_tools/lib/src/web/workflow.dart
-index bf35375..5533196 100644
+index bf35375f..55331967 100644
 --- a/packages/flutter_tools/lib/src/web/workflow.dart
 +++ b/packages/flutter_tools/lib/src/web/workflow.dart
 @@ -16,7 +16,8 @@ class WebWorkflow extends Workflow {
