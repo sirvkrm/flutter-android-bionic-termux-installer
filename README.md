@@ -24,6 +24,7 @@ By default, `./install.sh`:
 - extracts the bundle
 - applies the Termux host compatibility patch
 - overlays the bionic host tools into the Flutter SDK cache
+- normalizes the overlaid Dart SDK semver so `pub` accepts the prebuilt bundle
 - writes `env.sh`
 - writes a `flutter-termux` wrapper in `bin/`
 
