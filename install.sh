@@ -6,7 +6,7 @@ DEFAULT_OWNER="sirvkrm"
 DEFAULT_REPO="flutter-android-bionic-builder"
 DEFAULT_INSTALL_ROOT="${PREFIX:-$HOME/.local}/opt/flutter-termux"
 DEFAULT_FLUTTER_REPO="https://github.com/flutter/flutter.git"
-DEFAULT_FLUTTER_REF="stable"
+DEFAULT_FLUTTER_REF="3.32.8"
 PATCH_FILE="$SCRIPT_DIR/patches/0001-termux-android-host-support.patch"
 
 note() {
@@ -42,8 +42,9 @@ Options:
   --abi ABI            Host arch alias (currently only arm64-v8a)
   --install-root DIR   Override the installation root
   --flutter-dir DIR    Override the Flutter SDK checkout path
+  --reclone           Remove any existing Flutter SDK checkout and clone the requested ref again
   --flutter-repo URL   Override the Flutter framework repo (default: official repo)
-  --flutter-ref REF    Override the Flutter git ref to clone (default: stable)
+  --flutter-ref REF    Override the Flutter git ref to clone (default: 3.32.8)
   --owner NAME         Override the GitHub owner (default: sirvkrm)
   --repo NAME          Override the GitHub repo (default: flutter-android-bionic-builder)
   --keep-archive       Keep the downloaded tarball in tmp/
@@ -238,6 +239,25 @@ except urllib.error.HTTPError as exc:
 PY
 }
 
+resolve_flutter_ref_commit() {
+  local flutter_repo=$1
+  local flutter_ref=$2
+  local resolved=""
+
+  resolved=$(git ls-remote --refs --tags --heads "$flutter_repo" "$flutter_ref" | awk 'NR==1 {print $1}')
+  if [[ -n "$resolved" ]]; then
+    printf '%s\n' "$resolved"
+    return 0
+  fi
+
+  if git ls-remote --exit-code "$flutter_repo" "$flutter_ref^{commit}" >/dev/null 2>&1; then
+    git ls-remote "$flutter_repo" "$flutter_ref^{commit}" | awk 'NR==1 {print $1}'
+    return 0
+  fi
+
+  return 1
+}
+
 choose_interactively() {
   local -a assets=("$@")
   local idx
@@ -365,10 +385,36 @@ ensure_flutter_sdk() {
   local flutter_repo=$1
   local flutter_ref=$2
   local flutter_dir=$3
+  local reclone=$4
+  local requested_commit=""
+  local current_commit=""
+
+  requested_commit=$(resolve_flutter_ref_commit "$flutter_repo" "$flutter_ref") || \
+    die "unable to resolve Flutter ref: $flutter_ref"
 
   if [[ -d "$flutter_dir/.git" ]]; then
-    note "Using existing Flutter SDK checkout: $flutter_dir"
-    return 0
+    current_commit=$(git -C "$flutter_dir" rev-parse HEAD 2>/dev/null || true)
+    if [[ "$current_commit" == "$requested_commit" ]]; then
+      note "Using existing Flutter SDK checkout: $flutter_dir"
+      return 0
+    fi
+
+    if [[ "$reclone" == "1" ]]; then
+      note "Removing existing Flutter SDK checkout: $flutter_dir"
+      rm -rf "$flutter_dir"
+    else
+      note "Existing Flutter SDK checkout does not match $flutter_ref; replacing it"
+      rm -rf "$flutter_dir"
+    fi
+  fi
+
+  if [[ -d "$flutter_dir" && ! -d "$flutter_dir/.git" ]]; then
+    if [[ "$reclone" == "1" ]]; then
+      note "Removing existing non-git Flutter directory: $flutter_dir"
+      rm -rf "$flutter_dir"
+    else
+      die "existing path is not a Flutter git checkout: $flutter_dir (use --reclone to replace it)"
+    fi
   fi
 
   mkdir -p "$(dirname "$flutter_dir")"
@@ -468,6 +514,7 @@ main() {
   local interactive=0
   local keep_archive=0
   local run_precache=0
+  local reclone=0
 
   while (($#)); do
     case "$1" in
@@ -501,6 +548,9 @@ main() {
         shift
         [[ $# -gt 0 ]] || die "--flutter-dir requires a value"
         flutter_dir=$1
+        ;;
+      --reclone)
+        reclone=1
         ;;
       --flutter-repo)
         shift
@@ -580,7 +630,7 @@ main() {
   [[ -d "$bundle_dir/overlay" ]] || die "host bundle is missing overlay/: $bundle_dir"
 
   flutter_dir=${flutter_dir:-$install_root/flutter}
-  ensure_flutter_sdk "$flutter_repo" "$flutter_ref" "$flutter_dir"
+  ensure_flutter_sdk "$flutter_repo" "$flutter_ref" "$flutter_dir" "$reclone"
   apply_patch_if_needed "$flutter_dir" "$PATCH_FILE"
   copy_overlay_dir "$bundle_dir/overlay" "$flutter_dir"
   prime_flutter_cache_stamps "$flutter_dir"

@@ -19,7 +19,7 @@ The installer also applies a small Flutter framework patch so the tool treats Te
 
 By default, `./install.sh`:
 
-- clones the official Flutter SDK (`stable`) if it is not already present
+- clones the latest Flutter tag that still targets Dart `3.7` (`3.32.8`) if it is not already present
 - downloads the latest Termux host bundle release asset
 - extracts the bundle
 - applies the Termux host compatibility patch
@@ -117,11 +117,20 @@ Reuse or target a different Flutter checkout path:
 ./install.sh --flutter-dir "$HOME/flutter-termux-sdk"
 ```
 
+If an existing checkout is present at a different Flutter ref, the installer now
+replaces it automatically. Use `--reclone` if you want to force a fresh clone
+even when the checkout already matches the requested ref.
+
 Clone a different Flutter ref:
 
 ```bash
 ./install.sh --flutter-ref master
 ```
+
+The default ref is intentionally pinned to `3.32.8`, because the current public
+engine source used to build the bionic host bundle still provides Dart `3.7`.
+Newer Flutter framework refs such as current `stable` require newer Dart SDK
+versions and will fail during `flutter_tools` bootstrap with this host bundle.
 
 Run Android precache immediately after install:
 
