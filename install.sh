@@ -523,11 +523,14 @@ write_env_file() {
   local asset=$5
   local android_sdk=$6
   local android_ndk=$7
+  local owner=$8
+  local repo=$9
 
   {
     printf 'export FLUTTER_TERMUX_HOME="%s"\n' "$install_root"
     printf 'export FLUTTER_TERMUX_RELEASE_TAG="%s"\n' "$tag"
     printf 'export FLUTTER_TERMUX_ASSET="%s"\n' "$asset"
+    printf 'export FLUTTER_TERMUX_ARTIFACT_BASE_URL="%s"\n' "https://github.com/$owner/$repo/releases/download/$tag"
     printf 'export FLUTTER_ROOT="%s"\n' "$flutter_dir"
     printf 'export PATH="%s/bin:%s/bin:$PATH"\n' "$install_root" "$flutter_dir"
     if [[ -n "$android_sdk" ]]; then
@@ -698,7 +701,7 @@ main() {
 
   local env_file="$install_root/env.sh"
   local wrapper_path="$install_root/bin/flutter-termux"
-  write_env_file "$env_file" "$install_root" "$flutter_dir" "$tag" "$asset" "$android_sdk" "$android_ndk"
+  write_env_file "$env_file" "$install_root" "$flutter_dir" "$tag" "$asset" "$android_sdk" "$android_ndk" "$owner" "$repo"
   write_wrapper "$wrapper_path" "$install_root"
 
   if [[ "$run_precache" == "1" ]]; then

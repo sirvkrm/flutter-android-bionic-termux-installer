@@ -11,10 +11,12 @@ The host bundle provides the pieces the stock Flutter SDK does not ship for Andr
 - `bin/cache/dart-sdk` built for Android bionic `aarch64`
 - `bin/cache/artifacts/engine/linux-arm64/font-subset`
 - `bin/cache/artifacts/engine/linux-arm64/const_finder.dart.snapshot`
-- `bin/cache/artifacts/engine/android-arm-profile/linux-arm64/gen_snapshot`
+- `bin/cache/artifacts/engine/android-*-{profile,release}/android-arm64/gen_snapshot`
 
 The installer patches `flutter_tools` so Android-hosted Termux uses the
-`linux-arm64` Android snapshot tool cache paths instead of `linux-x64`.
+`android-arm64` Android snapshot tool cache namespace instead of `linux-x64`.
+It also sets `FLUTTER_TERMUX_ARTIFACT_BASE_URL` in `env.sh`, so Android-host
+snapshot zips can be fetched from this project's GitHub releases if missing.
 
 The installer also applies a small Flutter framework patch so the tool treats Termux as a Linux-like host for host-platform selection and Android SDK path discovery.
 
@@ -185,6 +187,7 @@ The Flutter framework patches applied during install are stored here:
 - `patches/0002-termux-android-flutter-cache-support.patch`
 - `patches/0003-termux-android-web-chrome-support.patch`
 - `patches/0004-termux-android-adb-discovery-tolerance.patch`
+- `patches/0005-termux-android-artifact-namespace-and-mirror.patch`
 
 ## Limitations
 

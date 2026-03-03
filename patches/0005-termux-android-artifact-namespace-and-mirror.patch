@@ -1,0 +1,126 @@
+diff --git a/packages/flutter_tools/lib/src/artifacts.dart b/packages/flutter_tools/lib/src/artifacts.dart
+index eeb0616..1d51b50 100644
+--- a/packages/flutter_tools/lib/src/artifacts.dart
++++ b/packages/flutter_tools/lib/src/artifacts.dart
+@@ -601,11 +601,26 @@ class CachedArtifacts implements Artifacts {
+           hostPlatform = HostPlatform.darwin_x64;
+         }
+ 
+-        final String hostPlatformName = getNameForHostPlatform(hostPlatform);
++        final String artifactFileName = _artifactToFileName(artifact, _platform);
++        if (_platform.isAndroid && hostPlatform == HostPlatform.linux_arm64) {
++          final String androidHostPath = _fileSystem.path.join(
++            engineDir,
++            'android-arm64',
++            artifactFileName,
++          );
++          if (_fileSystem.file(androidHostPath).existsSync()) {
++            return androidHostPath;
++          }
++        }
++
++        final String hostPlatformName =
++            (_platform.isAndroid && hostPlatform == HostPlatform.linux_arm64)
++                ? 'android-arm64'
++                : getNameForHostPlatform(hostPlatform);
+         return _fileSystem.path.join(
+           engineDir,
+           hostPlatformName,
+-          _artifactToFileName(artifact, _platform),
++          artifactFileName,
+         );
+       case Artifact.engineDartSdkPath:
+       case Artifact.engineDartBinary:
+diff --git a/packages/flutter_tools/lib/src/cache.dart b/packages/flutter_tools/lib/src/cache.dart
+index 09f453a..44460a4 100644
+--- a/packages/flutter_tools/lib/src/cache.dart
++++ b/packages/flutter_tools/lib/src/cache.dart
+@@ -944,6 +944,14 @@ abstract class EngineCachedArtifact extends CachedArtifact {
+   /// A list of the dart package directories to download.
+   List<String> getPackageDirs();
+ 
++  Uri _toolDownloadUri(String urlBase, String urlPath) {
++    final Uri uri = Uri.parse(urlPath);
++    if (uri.hasScheme) {
++      return uri;
++    }
++    return Uri.parse(urlBase + urlPath);
++  }
++
+   @override
+   bool isUpToDateInner(FileSystem fileSystem) {
+     final Directory pkgDir = cache.getCacheDir('pkg');
+@@ -991,12 +999,16 @@ abstract class EngineCachedArtifact extends CachedArtifact {
+       final String cacheDir = toolsDir[0];
+       final String urlPath = toolsDir[1];
+       final Directory dir = fileSystem.directory(fileSystem.path.join(location.path, cacheDir));
++      final Uri toolUri = _toolDownloadUri(url, urlPath);
+ 
+       // Avoid printing things like 'Downloading linux-x64 tools...' multiple times.
+-      final String friendlyName = urlPath.replaceAll('/artifacts.zip', '').replaceAll('.zip', '');
++      final String friendlyName =
++          toolUri.hasScheme && toolUri.host.isNotEmpty
++              ? cacheDir
++              : urlPath.replaceAll('/artifacts.zip', '').replaceAll('.zip', '');
+       await artifactUpdater.downloadZipArchive(
+         'Downloading $friendlyName tools...',
+-        Uri.parse(url + urlPath),
++        toolUri,
+         dir,
+       );
+ 
+@@ -1032,9 +1044,10 @@ abstract class EngineCachedArtifact extends CachedArtifact {
+     for (final List<String> toolsDir in getBinaryDirs()) {
+       final String cacheDir = toolsDir[0];
+       final String urlPath = toolsDir[1];
++      final Uri toolUri = _toolDownloadUri(url, urlPath);
+       exists = await cache.doesRemoteExist(
+         'Checking $cacheDir tools are available...',
+-        Uri.parse(url + urlPath),
++        toolUri,
+       );
+       if (!exists) {
+         return false;
+diff --git a/packages/flutter_tools/lib/src/flutter_cache.dart b/packages/flutter_tools/lib/src/flutter_cache.dart
+index 294ccba..9f19af3 100644
+--- a/packages/flutter_tools/lib/src/flutter_cache.dart
++++ b/packages/flutter_tools/lib/src/flutter_cache.dart
+@@ -336,8 +336,38 @@ class AndroidGenSnapshotArtifacts extends EngineCachedArtifact {
+   @override
+   List<String> getPackageDirs() => const <String>[];
+ 
++  String _termuxAndroidArtifactsBaseUrl() {
++    final String? explicit = _platform.environment['FLUTTER_TERMUX_ARTIFACT_BASE_URL'];
++    if (explicit != null && explicit.isNotEmpty) {
++      return explicit;
++    }
++    final String tag = _platform.environment['FLUTTER_TERMUX_RELEASE_TAG'] ?? 'v2026.03.03';
++    return 'https://github.com/sirvkrm/flutter-android-bionic-builder/releases/download/$tag';
++  }
++
++  List<List<String>> _androidHostBinaryDirs(String baseUrl) {
++    return <List<String>>[
++      <String>['android-arm-profile/android-arm64', '$baseUrl/android-arm-profile-android-arm64.zip'],
++      <String>['android-arm-release/android-arm64', '$baseUrl/android-arm-release-android-arm64.zip'],
++      <String>[
++        'android-arm64-profile/android-arm64',
++        '$baseUrl/android-arm64-profile-android-arm64.zip',
++      ],
++      <String>[
++        'android-arm64-release/android-arm64',
++        '$baseUrl/android-arm64-release-android-arm64.zip',
++      ],
++      <String>['android-x64-profile/android-arm64', '$baseUrl/android-x64-profile-android-arm64.zip'],
++      <String>['android-x64-release/android-arm64', '$baseUrl/android-x64-release-android-arm64.zip'],
++    ];
++  }
++
+   @override
+   List<List<String>> getBinaryDirs() {
++    if (_platform.isAndroid) {
++      return _androidHostBinaryDirs(_termuxAndroidArtifactsBaseUrl());
++    }
++
+     return <List<String>>[
+       if (cache.includeAllPlatforms) ...<List<String>>[
+         ..._osxBinaryDirs,
