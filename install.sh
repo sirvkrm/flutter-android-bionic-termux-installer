@@ -4,6 +4,7 @@ set -euo pipefail
 SCRIPT_DIR=$(CDPATH= cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)
 DEFAULT_OWNER="sirvkrm"
 DEFAULT_REPO="flutter-android-bionic-builder"
+DEFAULT_DART_REPO="dart-android-bionic-builder"
 DEFAULT_INSTALL_ROOT="${PREFIX:-$HOME/.local}/opt/flutter-termux"
 DEFAULT_FLUTTER_REPO="https://github.com/flutter/flutter.git"
 DEFAULT_FLUTTER_REF="3.32.8"
@@ -47,6 +48,8 @@ Options:
   --flutter-ref REF    Override the Flutter git ref to clone (default: 3.32.8)
   --owner NAME         Override the GitHub owner (default: sirvkrm)
   --repo NAME          Override the GitHub repo (default: flutter-android-bionic-builder)
+  --dart-owner NAME    Override the Dart artifact GitHub owner (default: same as --owner)
+  --dart-repo NAME     Override the Dart artifact GitHub repo (default: dart-android-bionic-builder)
   --keep-archive       Keep the downloaded tarball in tmp/
   --precache           Run flutter precache --android after install
   -h, --help           Show this help
@@ -530,12 +533,18 @@ write_env_file() {
   local android_ndk=$7
   local owner=$8
   local repo=$9
+  local dart_owner=${10}
+  local dart_repo=${11}
+  local host_arch=${12}
 
   {
     printf 'export FLUTTER_TERMUX_HOME="%s"\n' "$install_root"
     printf 'export FLUTTER_TERMUX_RELEASE_TAG="%s"\n' "$tag"
     printf 'export FLUTTER_TERMUX_ASSET="%s"\n' "$asset"
     printf 'export FLUTTER_TERMUX_ARTIFACT_BASE_URL="%s"\n' "https://github.com/$owner/$repo/releases/download/$tag"
+    printf 'export FLUTTER_TERMUX_DART_REPO="%s/%s"\n' "$dart_owner" "$dart_repo"
+    printf 'export FLUTTER_TERMUX_DART_ARTIFACT_BASE_URL="%s"\n' "https://github.com/$dart_owner/$dart_repo/releases/latest/download"
+    printf 'export FLUTTER_TERMUX_DART_SDK_ASSET="%s"\n' "dart-sdk-android-$host_arch.zip"
     printf 'export FLUTTER_ROOT="%s"\n' "$flutter_dir"
     printf 'export PATH="%s/bin:%s/bin:$PATH"\n' "$install_root" "$flutter_dir"
     if [[ -n "$android_sdk" ]]; then
@@ -566,6 +575,8 @@ EOF
 main() {
   local owner="$DEFAULT_OWNER"
   local repo="$DEFAULT_REPO"
+  local dart_owner=""
+  local dart_repo="$DEFAULT_DART_REPO"
   local install_root="$DEFAULT_INSTALL_ROOT"
   local flutter_repo="$DEFAULT_FLUTTER_REPO"
   local flutter_ref="$DEFAULT_FLUTTER_REF"
@@ -635,6 +646,16 @@ main() {
         [[ $# -gt 0 ]] || die "--repo requires a value"
         repo=$1
         ;;
+      --dart-owner)
+        shift
+        [[ $# -gt 0 ]] || die "--dart-owner requires a value"
+        dart_owner=$1
+        ;;
+      --dart-repo)
+        shift
+        [[ $# -gt 0 ]] || die "--dart-repo requires a value"
+        dart_repo=$1
+        ;;
       --keep-archive)
         keep_archive=1
         ;;
@@ -662,6 +683,9 @@ main() {
 
   local host_arch
   host_arch=${requested_host_arch:-$(detect_host_bundle_arch)}
+  if [[ -z "$dart_owner" ]]; then
+    dart_owner=$owner
+  fi
 
   local tag
   tag=${requested_tag:-$(github_release_query "latest-tag" "$owner" "$repo")}
@@ -711,7 +735,7 @@ main() {
 
   local env_file="$install_root/env.sh"
   local wrapper_path="$install_root/bin/flutter-termux"
-  write_env_file "$env_file" "$install_root" "$flutter_dir" "$tag" "$asset" "$android_sdk" "$android_ndk" "$owner" "$repo"
+  write_env_file "$env_file" "$install_root" "$flutter_dir" "$tag" "$asset" "$android_sdk" "$android_ndk" "$owner" "$repo" "$dart_owner" "$dart_repo" "$host_arch"
   write_wrapper "$wrapper_path" "$install_root"
 
   if [[ "$run_precache" == "1" ]]; then
