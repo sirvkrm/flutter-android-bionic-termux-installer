@@ -7,7 +7,7 @@ index eeb0616..1d51b50 100644
          }
  
 -        final String hostPlatformName = getNameForHostPlatform(hostPlatform);
-+        final String artifactFileName = _artifactToFileName(artifact, _platform);
++        final String artifactFileName = _artifactToFileName(artifact, _platform)!;
 +        if (_platform.isAndroid && hostPlatform == HostPlatform.linux_arm64) {
 +          final String androidHostPath = _fileSystem.path.join(
 +            engineDir,
