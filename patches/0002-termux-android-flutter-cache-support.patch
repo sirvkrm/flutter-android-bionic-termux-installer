@@ -17,7 +17,8 @@ index f5f1f78..79a209e 100644
          ..._osxBinaryDirs
 -      else if (_platform.isLinux)
 +      else if (_platform.isLinuxLike)
-         ..._linuxBinaryDirs,
+-        ..._linuxBinaryDirs,
++        ...(_platform.isAndroid ? _linuxArm64BinaryDirs : _linuxBinaryDirs),
      ];
    }
 @@ -717,7 +717,8 @@ class FontSubsetArtifacts extends EngineCachedArtifact {
@@ -30,3 +31,19 @@ index f5f1f78..79a209e 100644
        if (binaryDirs == null) {
          throwToolExit('Unsupported operating system: ${_platform.operatingSystem}');
        }
+@@ -841,6 +842,15 @@ const List<List<String>> _linuxBinaryDirs = <List<String>>[
+   <String>['android-x64-release/linux-x64', 'android-x64-release/linux-x64.zip'],
+ ];
+ 
++const List<List<String>> _linuxArm64BinaryDirs = <List<String>>[
++  <String>['android-arm-profile/linux-arm64', 'android-arm-profile/linux-arm64.zip'],
++  <String>['android-arm-release/linux-arm64', 'android-arm-release/linux-arm64.zip'],
++  <String>['android-arm64-profile/linux-arm64', 'android-arm64-profile/linux-arm64.zip'],
++  <String>['android-arm64-release/linux-arm64', 'android-arm64-release/linux-arm64.zip'],
++  <String>['android-x64-profile/linux-arm64', 'android-x64-profile/linux-arm64.zip'],
++  <String>['android-x64-release/linux-arm64', 'android-x64-release/linux-arm64.zip'],
++];
++
+ const List<List<String>> _windowsBinaryDirs = <List<String>>[
+   <String>['android-arm-profile/windows-x64', 'android-arm-profile/windows-x64.zip'],
+   <String>['android-arm-release/windows-x64', 'android-arm-release/windows-x64.zip'],
