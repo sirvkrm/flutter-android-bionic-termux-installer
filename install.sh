@@ -392,6 +392,11 @@ ensure_flutter_sdk() {
   requested_commit=$(resolve_flutter_ref_commit "$flutter_repo" "$flutter_ref") || \
     die "unable to resolve Flutter ref: $flutter_ref"
 
+  if [[ "$reclone" == "1" && -d "$flutter_dir" ]]; then
+    note "Removing existing Flutter SDK checkout: $flutter_dir"
+    rm -rf "$flutter_dir"
+  fi
+
   if [[ -d "$flutter_dir/.git" ]]; then
     current_commit=$(git -C "$flutter_dir" rev-parse HEAD 2>/dev/null || true)
     if [[ "$current_commit" == "$requested_commit" ]]; then
@@ -399,13 +404,8 @@ ensure_flutter_sdk() {
       return 0
     fi
 
-    if [[ "$reclone" == "1" ]]; then
-      note "Removing existing Flutter SDK checkout: $flutter_dir"
-      rm -rf "$flutter_dir"
-    else
-      note "Existing Flutter SDK checkout does not match $flutter_ref; replacing it"
-      rm -rf "$flutter_dir"
-    fi
+    note "Existing Flutter SDK checkout does not match $flutter_ref; replacing it"
+    rm -rf "$flutter_dir"
   fi
 
   if [[ -d "$flutter_dir" && ! -d "$flutter_dir/.git" ]]; then
