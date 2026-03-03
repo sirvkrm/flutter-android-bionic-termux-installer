@@ -523,6 +523,15 @@ prime_flutter_cache_stamps() {
   cp -a "$engine_stamp" "$flutter_dir/bin/cache/engine-dart-sdk.stamp"
 }
 
+reset_termux_host_artifact_cache_state() {
+  local flutter_dir=$1
+  local engine_root="$flutter_dir/bin/cache/artifacts/engine"
+
+  rm -rf "$engine_root/common"
+  rm -rf "$engine_root/linux-arm64"
+  rm -f "$flutter_dir/bin/cache/flutter_sdk.stamp"
+}
+
 write_env_file() {
   local env_file=$1
   local install_root=$2
@@ -727,6 +736,7 @@ main() {
     apply_patches_if_needed "$flutter_dir" "$PATCH_DIR" || \
       die "unable to apply patch set cleanly after reclone"
   fi
+  reset_termux_host_artifact_cache_state "$flutter_dir"
   copy_overlay_dir "$bundle_dir/overlay" "$flutter_dir"
   normalize_dart_sdk_semver "$flutter_dir/bin/cache"
   prime_flutter_cache_stamps "$flutter_dir"
