@@ -180,6 +180,7 @@ The Flutter framework patches applied during install are stored here:
 
 - `patches/0001-termux-android-host-support.patch`
 - `patches/0002-termux-android-flutter-cache-support.patch`
+- `patches/0003-termux-android-web-chrome-support.patch`
 
 ## Limitations
 

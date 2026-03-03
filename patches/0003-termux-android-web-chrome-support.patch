@@ -1,0 +1,13 @@
+diff --git a/packages/flutter_tools/lib/src/web/chrome.dart b/packages/flutter_tools/lib/src/web/chrome.dart
+index 97e8137..14d5f8e 100644
+--- a/packages/flutter_tools/lib/src/web/chrome.dart
++++ b/packages/flutter_tools/lib/src/web/chrome.dart
+@@ -56,7 +56,7 @@ String findChromeExecutable(Platform platform, FileSystem fileSystem) {
+   if (platform.environment.containsKey(kChromeEnvironment)) {
+     return platform.environment[kChromeEnvironment]!;
+   }
+-  if (platform.isLinux) {
++  if (platform.isLinuxLike) {
+     return kLinuxExecutable;
+   }
+   if (platform.isMacOS) {
