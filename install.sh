@@ -438,7 +438,7 @@ apply_patch_if_needed() {
     return 0
   fi
 
-  die "unable to apply $(basename "$patch_file") cleanly in $repo_dir"
+  return 1
 }
 
 apply_patches_if_needed() {
@@ -454,8 +454,13 @@ apply_patches_if_needed() {
   ((${#patch_files[@]} > 0)) || die "no patch files found in $patch_dir"
 
   for patch_file in "${patch_files[@]}"; do
-    apply_patch_if_needed "$repo_dir" "$patch_file"
+    if ! apply_patch_if_needed "$repo_dir" "$patch_file"; then
+      note "Patch mismatch: $(basename "$patch_file")"
+      return 1
+    fi
   done
+
+  return 0
 }
 
 copy_overlay_dir() {
@@ -689,7 +694,12 @@ main() {
 
   flutter_dir=${flutter_dir:-$install_root/flutter}
   ensure_flutter_sdk "$flutter_repo" "$flutter_ref" "$flutter_dir" "$reclone"
-  apply_patches_if_needed "$flutter_dir" "$PATCH_DIR"
+  if ! apply_patches_if_needed "$flutter_dir" "$PATCH_DIR"; then
+    note "Existing Flutter checkout has incompatible local patch state; recloning and retrying once"
+    ensure_flutter_sdk "$flutter_repo" "$flutter_ref" "$flutter_dir" "1"
+    apply_patches_if_needed "$flutter_dir" "$PATCH_DIR" || \
+      die "unable to apply patch set cleanly after reclone"
+  fi
   copy_overlay_dir "$bundle_dir/overlay" "$flutter_dir"
   normalize_dart_sdk_semver "$flutter_dir/bin/cache"
   prime_flutter_cache_stamps "$flutter_dir"
