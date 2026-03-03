@@ -6,6 +6,10 @@ It pulls the host bundle from:
 
 - `https://github.com/sirvkrm/flutter-android-bionic-builder`
 
+It pulls Android-bionic Dart SDK mirror zips from:
+
+- `https://github.com/sirvkrm/dart-android-bionic-builder`
+
 The host bundle provides the pieces the stock Flutter SDK does not ship for Android-hosted terminals:
 
 - `bin/cache/dart-sdk` built for Android bionic `aarch64`
@@ -17,6 +21,9 @@ The installer patches `flutter_tools` so Android-hosted Termux uses the
 `android-arm64` Android snapshot tool cache namespace instead of `linux-x64`.
 It also sets `FLUTTER_TERMUX_ARTIFACT_BASE_URL` in `env.sh`, so Android-host
 snapshot zips can be fetched from this project's GitHub releases if missing.
+It also sets `FLUTTER_TERMUX_DART_ARTIFACT_BASE_URL` in `env.sh`, so Android
+hosts fetch Dart SDK zips from the Dart mirror repo (latest release by default)
+instead of Flutter's Google-hosted Linux Dart zip.
 The patch set also whitelists this base URL in Flutter's artifact downloader,
 so custom mirror downloads do not emit SDK-bug warnings.
 
@@ -35,6 +42,7 @@ By default, `./install.sh`:
 - normalizes the overlaid Dart SDK semver so `pub` accepts the prebuilt bundle
 - writes `env.sh`
 - writes a `flutter-termux` wrapper in `bin/`
+- configures Dart mirror env vars to auto-track the latest Dart mirror release
 
 ## Current Scope
 
@@ -141,6 +149,12 @@ engine source used to build the bionic host bundle still provides Dart `3.7`.
 Newer Flutter framework refs such as current `stable` require newer Dart SDK
 versions and will fail during `flutter_tools` bootstrap with this host bundle.
 
+Override Dart mirror owner/repo:
+
+```bash
+./install.sh --dart-owner sirvkrm --dart-repo dart-android-bionic-builder
+```
+
 Run Android precache immediately after install:
 
 ```bash
@@ -192,6 +206,7 @@ The Flutter framework patches applied during install are stored here:
 - `patches/0004-termux-android-adb-discovery-tolerance.patch`
 - `patches/0005-termux-android-artifact-namespace-and-mirror.patch`
 - `patches/0006-termux-android-allow-custom-artifact-base-url.patch`
+- `patches/0007-termux-android-dart-sdk-mirror.patch`
 
 ## Limitations
 
