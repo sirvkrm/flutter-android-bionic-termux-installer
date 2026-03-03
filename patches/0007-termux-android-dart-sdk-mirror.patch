@@ -1,5 +1,5 @@
 diff --git a/bin/internal/update_dart_sdk.sh b/bin/internal/update_dart_sdk.sh
-index 9ab6151..f20dba2 100755
+index 9ab6151..3259d31 100755
 --- a/bin/internal/update_dart_sdk.sh
 +++ b/bin/internal/update_dart_sdk.sh
 @@ -24,6 +24,10 @@ OS="$(uname -s)"
@@ -13,7 +13,7 @@ index 9ab6151..f20dba2 100755
  if [ ! -f "$ENGINE_STAMP" ] || [ "$ENGINE_VERSION" != `cat "$ENGINE_STAMP"` ]; then
    command -v curl > /dev/null 2>&1 || {
      >&2 echo
-@@ -95,13 +99,22 @@ if [ ! -f "$ENGINE_STAMP" ] || [ "$ENGINE_VERSION" != `cat "$ENGINE_STAMP"` ]; t
+@@ -95,13 +99,24 @@ if [ ! -f "$ENGINE_STAMP" ] || [ "$ENGINE_VERSION" != `cat "$ENGINE_STAMP"` ]; t
      esac
    fi
  
@@ -22,6 +22,7 @@ index 9ab6151..f20dba2 100755
 +    is_termux_android=1
 +  fi
 +
++  DART_ZIP_FALLBACK_NAME=""
    case "$OS" in
      Darwin)
        DART_ZIP_NAME="dart-sdk-darwin-${ARCH}.zip"
@@ -30,14 +31,15 @@ index 9ab6151..f20dba2 100755
      Linux)
 -      DART_ZIP_NAME="dart-sdk-linux-${ARCH}.zip"
 +      if [ "$is_termux_android" = "1" ]; then
-+        DART_ZIP_NAME="${FLUTTER_TERMUX_DART_SDK_ASSET:-dart-sdk-android-${ARCH}.zip}"
++        DART_ZIP_NAME="${FLUTTER_TERMUX_DART_SDK_ASSET:-dart-sdk-android-${ARCH}-${ENGINE_VERSION}.zip}"
++        DART_ZIP_FALLBACK_NAME="${FLUTTER_TERMUX_DART_SDK_FALLBACK_ASSET:-dart-sdk-android-${ARCH}.zip}"
 +      else
 +        DART_ZIP_NAME="dart-sdk-linux-${ARCH}.zip"
 +      fi
        IS_USER_EXECUTABLE="-perm /u+x"
        ;;
      MINGW* | MSYS* )
-@@ -114,8 +127,6 @@ if [ ! -f "$ENGINE_STAMP" ] || [ "$ENGINE_VERSION" != `cat "$ENGINE_STAMP"` ]; t
+@@ -114,8 +129,6 @@ if [ ! -f "$ENGINE_STAMP" ] || [ "$ENGINE_VERSION" != `cat "$ENGINE_STAMP"` ]; t
        ;;
    esac
  
@@ -46,28 +48,73 @@ index 9ab6151..f20dba2 100755
    # Use the default find if possible.
    if [ -e /usr/bin/find ]; then
      FIND=/usr/bin/find
-@@ -123,8 +134,19 @@ if [ ! -f "$ENGINE_STAMP" ] || [ "$ENGINE_VERSION" != `cat "$ENGINE_STAMP"` ]; t
+@@ -123,8 +136,26 @@ if [ ! -f "$ENGINE_STAMP" ] || [ "$ENGINE_VERSION" != `cat "$ENGINE_STAMP"` ]; t
      FIND=find
    fi
  
 -  DART_SDK_BASE_URL="${FLUTTER_STORAGE_BASE_URL:-https://storage.googleapis.com}${ENGINE_REALM:+/$ENGINE_REALM}"
 -  DART_SDK_URL="$DART_SDK_BASE_URL/flutter_infra_release/flutter/$ENGINE_VERSION/$DART_ZIP_NAME"
 +  if [ "$is_termux_android" = "1" ]; then
-+    TERMUX_DART_BASE_URL="${FLUTTER_TERMUX_DART_ARTIFACT_BASE_URL:-https://github.com/sirvkrm/dart-android-bionic-builder/releases/latest/download}"
 +    if [ -n "${FLUTTER_TERMUX_DART_SDK_URL:-}" ]; then
 +      DART_SDK_URL="$FLUTTER_TERMUX_DART_SDK_URL"
++      DART_SDK_FALLBACK_URL=""
 +    else
-+      DART_SDK_URL="$TERMUX_DART_BASE_URL/$DART_ZIP_NAME"
++      DART_SDK_BASE_URL="${FLUTTER_TERMUX_DART_ARTIFACT_BASE_URL:-https://github.com/sirvkrm/dart-android-bionic-builder/releases/download/${FLUTTER_TERMUX_RELEASE_TAG:-v2026.03.03}}"
++      DART_SDK_URL="$DART_SDK_BASE_URL/$DART_ZIP_NAME"
++      if [ -n "$DART_ZIP_FALLBACK_NAME" ] && [ "$DART_ZIP_FALLBACK_NAME" != "$DART_ZIP_NAME" ]; then
++        DART_SDK_FALLBACK_URL="$DART_SDK_BASE_URL/$DART_ZIP_FALLBACK_NAME"
++      else
++        DART_SDK_FALLBACK_URL=""
++      fi
 +    fi
-+    >&2 echo "Downloading Android bionic $ARCH Dart SDK from $DART_SDK_URL..."
++    >&2 echo "Downloading Android bionic $ARCH Dart SDK (engine $ENGINE_VERSION) from $DART_SDK_URL..."
 +  else
 +    >&2 echo "Downloading $OS $ARCH Dart SDK from Flutter engine $ENGINE_VERSION..."
 +    DART_SDK_BASE_URL="${FLUTTER_STORAGE_BASE_URL:-https://storage.googleapis.com}${ENGINE_REALM:+/$ENGINE_REALM}"
 +    DART_SDK_URL="$DART_SDK_BASE_URL/flutter_infra_release/flutter/$ENGINE_VERSION/$DART_ZIP_NAME"
++    DART_SDK_FALLBACK_URL=""
 +  fi
  
    # if the sdk path exists, copy it to a temporary location
    if [ -d "$DART_SDK_PATH" ]; then
+@@ -155,10 +186,29 @@ if [ ! -f "$ENGINE_STAMP" ] || [ "$ENGINE_VERSION" != `cat "$ENGINE_STAMP"` ]; t
+     # 33  HTTP range error. The range "command" didn't work.
+     # https://man7.org/linux/man-pages/man1/curl.1.html#EXIT_CODES
+     if [ $curlExitCode != 33 ]; then
++      if [ -n "$DART_SDK_FALLBACK_URL" ]; then
++        >&2 echo "Primary Dart SDK URL failed, trying fallback: $DART_SDK_FALLBACK_URL"
++        curl ${verbose_curl} --retry 3 --location --output "$DART_SDK_ZIP" "$DART_SDK_FALLBACK_URL" 2>&1 || return $?
++        return 0
++      fi
+       return $curlExitCode
+     fi
+     curl ${verbose_curl} --retry 3 --location --output "$DART_SDK_ZIP" "$DART_SDK_URL" 2>&1
+   } || {
++    if [ -n "$DART_SDK_FALLBACK_URL" ]; then
++      >&2 echo
++      >&2 echo "Primary Dart SDK URL failed, trying fallback: $DART_SDK_FALLBACK_URL"
++      if curl ${verbose_curl} --retry 3 --location --output "$DART_SDK_ZIP" "$DART_SDK_FALLBACK_URL" 2>&1; then
++        :
++      else
++        >&2 echo
++        >&2 echo "Failed to retrieve the Dart SDK from: $DART_SDK_URL"
++        >&2 echo "Fallback also failed: $DART_SDK_FALLBACK_URL"
++        >&2 echo
++        rm -f -- "$DART_SDK_ZIP"
++        exit 1
++      fi
++    else
+     >&2 echo
+     >&2 echo "Failed to retrieve the Dart SDK from: $DART_SDK_URL"
+     >&2 echo "If you're located in China, please see this page:"
+@@ -166,6 +216,7 @@ if [ ! -f "$ENGINE_STAMP" ] || [ "$ENGINE_VERSION" != `cat "$ENGINE_STAMP"` ]; t
+     >&2 echo
+     rm -f -- "$DART_SDK_ZIP"
+     exit 1
++    fi
+   }
+   unzip -o -q "$DART_SDK_ZIP" -d "$FLUTTER_ROOT/bin/cache" || {
+     >&2 echo
 diff --git a/packages/flutter_tools/lib/src/cache.dart b/packages/flutter_tools/lib/src/cache.dart
 index 1f122bf..8607e9d 100644
 --- a/packages/flutter_tools/lib/src/cache.dart
@@ -113,61 +160,45 @@ index 1f122bf..8607e9d 100644
    }
  
 diff --git a/packages/flutter_tools/lib/src/flutter_cache.dart b/packages/flutter_tools/lib/src/flutter_cache.dart
-index 9f19af3..7709807 100644
+index 9f19af3..130ed5b 100644
 --- a/packages/flutter_tools/lib/src/flutter_cache.dart
 +++ b/packages/flutter_tools/lib/src/flutter_cache.dart
-@@ -227,23 +227,52 @@ class FlutterSdk extends EngineCachedArtifact {
+@@ -227,10 +227,38 @@ class FlutterSdk extends EngineCachedArtifact {
    @override
    List<String> getPackageDirs() => const <String>['sky_engine', 'flutter_gpu'];
  
-+  String _termuxDartArtifactsBaseUrl() {
-+    final String? explicit = _platform.environment['FLUTTER_TERMUX_DART_ARTIFACT_BASE_URL'];
++  String _termuxArtifactsBaseUrl() {
++    final String? explicit = _platform.environment['FLUTTER_TERMUX_ARTIFACT_BASE_URL'];
 +    if (explicit != null && explicit.isNotEmpty) {
 +      return explicit;
 +    }
-+    return 'https://github.com/sirvkrm/dart-android-bionic-builder/releases/latest/download';
++    final String tag = _platform.environment['FLUTTER_TERMUX_RELEASE_TAG'] ?? 'v2026.03.03';
++    return 'https://github.com/sirvkrm/flutter-android-bionic-builder/releases/download/$tag';
 +  }
 +
-+  String _termuxDartSdkAssetName(String arch) {
-+    final String? explicit = _platform.environment['FLUTTER_TERMUX_DART_SDK_ASSET'];
++  String _termuxEngineStamp() {
++    final String? explicit = _platform.environment['FLUTTER_TERMUX_ENGINE_STAMP'];
 +    if (explicit != null && explicit.isNotEmpty) {
 +      return explicit;
 +    }
-+    return 'dart-sdk-android-$arch.zip';
++    return cache.engineRevision ?? 'unknown';
 +  }
 +
    @override
    List<List<String>> getBinaryDirs() {
      // Linux and Windows both support arm64 and x64.
      final String arch = cache.getHostPlatformArchName();
-+    final bool useTermuxDartMirror = _platform.isAndroid && _platform.isLinuxLike;
++
++    if (_platform.isAndroid) {
++      final String baseUrl = _termuxArtifactsBaseUrl();
++      final String engineStamp = _termuxEngineStamp();
++      return <List<String>>[
++        <String>['common', '$baseUrl/flutter_patched_sdk-$engineStamp.zip'],
++        <String>['common', '$baseUrl/flutter_patched_sdk_product-$engineStamp.zip'],
++        <String>['linux-$arch', '$baseUrl/linux-$arch-tools-$engineStamp.zip'],
++      ];
++    }
++
      return <List<String>>[
        <String>['common', 'flutter_patched_sdk.zip'],
        <String>['common', 'flutter_patched_sdk_product.zip'],
-       if (cache.includeAllPlatforms) ...<List<String>>[
-         <String>['windows-$arch', 'windows-$arch/artifacts.zip'],
--        <String>['linux-$arch', 'linux-$arch/artifacts.zip'],
-+        if (useTermuxDartMirror)
-+          <String>[
-+            'linux-$arch',
-+            '${_termuxDartArtifactsBaseUrl()}/${_termuxDartSdkAssetName(arch)}',
-+          ]
-+        else
-+          <String>['linux-$arch', 'linux-$arch/artifacts.zip'],
-         <String>['darwin-x64', 'darwin-$arch/artifacts.zip'],
-       ] else if (_platform.isWindows)
-         <String>['windows-$arch', 'windows-$arch/artifacts.zip']
-       else if (_platform.isMacOS)
-         <String>['darwin-x64', 'darwin-$arch/artifacts.zip']
-       else if (_platform.isLinuxLike)
--        <String>['linux-$arch', 'linux-$arch/artifacts.zip'],
-+        if (useTermuxDartMirror)
-+          <String>[
-+            'linux-$arch',
-+            '${_termuxDartArtifactsBaseUrl()}/${_termuxDartSdkAssetName(arch)}',
-+          ]
-+        else
-+          <String>['linux-$arch', 'linux-$arch/artifacts.zip'],
-     ];
-   }
- 
