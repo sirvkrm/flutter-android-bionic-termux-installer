@@ -536,15 +536,18 @@ write_env_file() {
   local dart_owner=${10}
   local dart_repo=${11}
   local host_arch=${12}
+  local engine_stamp=${13}
 
   {
     printf 'export FLUTTER_TERMUX_HOME="%s"\n' "$install_root"
     printf 'export FLUTTER_TERMUX_RELEASE_TAG="%s"\n' "$tag"
     printf 'export FLUTTER_TERMUX_ASSET="%s"\n' "$asset"
+    printf 'export FLUTTER_TERMUX_ENGINE_STAMP="%s"\n' "$engine_stamp"
     printf 'export FLUTTER_TERMUX_ARTIFACT_BASE_URL="%s"\n' "https://github.com/$owner/$repo/releases/download/$tag"
     printf 'export FLUTTER_TERMUX_DART_REPO="%s/%s"\n' "$dart_owner" "$dart_repo"
-    printf 'export FLUTTER_TERMUX_DART_ARTIFACT_BASE_URL="%s"\n' "https://github.com/$dart_owner/$dart_repo/releases/latest/download"
-    printf 'export FLUTTER_TERMUX_DART_SDK_ASSET="%s"\n' "dart-sdk-android-$host_arch.zip"
+    printf 'export FLUTTER_TERMUX_DART_ARTIFACT_BASE_URL="%s"\n' "https://github.com/$dart_owner/$dart_repo/releases/download/$tag"
+    printf 'export FLUTTER_TERMUX_DART_SDK_ASSET="%s"\n' "dart-sdk-android-$host_arch-$engine_stamp.zip"
+    printf 'export FLUTTER_TERMUX_DART_SDK_FALLBACK_ASSET="%s"\n' "dart-sdk-android-$host_arch.zip"
     printf 'export FLUTTER_ROOT="%s"\n' "$flutter_dir"
     printf 'export PATH="%s/bin:%s/bin:$PATH"\n' "$install_root" "$flutter_dir"
     if [[ -n "$android_sdk" ]]; then
@@ -735,7 +738,10 @@ main() {
 
   local env_file="$install_root/env.sh"
   local wrapper_path="$install_root/bin/flutter-termux"
-  write_env_file "$env_file" "$install_root" "$flutter_dir" "$tag" "$asset" "$android_sdk" "$android_ndk" "$owner" "$repo" "$dart_owner" "$dart_repo" "$host_arch"
+  local engine_stamp_value=""
+  engine_stamp_value=$(tr -d '\r\n' < "$flutter_dir/bin/cache/engine.stamp" 2>/dev/null || true)
+  [[ -n "$engine_stamp_value" ]] || die "missing engine stamp at $flutter_dir/bin/cache/engine.stamp"
+  write_env_file "$env_file" "$install_root" "$flutter_dir" "$tag" "$asset" "$android_sdk" "$android_ndk" "$owner" "$repo" "$dart_owner" "$dart_repo" "$host_arch" "$engine_stamp_value"
   write_wrapper "$wrapper_path" "$install_root"
 
   if [[ "$run_precache" == "1" ]]; then
