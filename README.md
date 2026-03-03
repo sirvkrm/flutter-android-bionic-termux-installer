@@ -22,8 +22,10 @@ The installer patches `flutter_tools` so Android-hosted Termux uses the
 It also sets `FLUTTER_TERMUX_ARTIFACT_BASE_URL` in `env.sh`, so Android-host
 snapshot zips can be fetched from this project's GitHub releases if missing.
 It also sets `FLUTTER_TERMUX_DART_ARTIFACT_BASE_URL` in `env.sh`, so Android
-hosts fetch Dart SDK zips from the Dart mirror repo (latest release by default)
-instead of Flutter's Google-hosted Linux Dart zip.
+hosts fetch Dart SDK zips from the Dart mirror repo (same release tag as the
+installed host bundle) instead of Flutter's Google-hosted Linux Dart zip.
+The patch set uses `engine.stamp` to select engine-matched mirror assets for
+`dart-sdk`, `flutter_patched_sdk(_product)`, and `linux-arm64` host tools.
 The patch set also whitelists this base URL in Flutter's artifact downloader,
 so custom mirror downloads do not emit SDK-bug warnings.
 
@@ -42,7 +44,7 @@ By default, `./install.sh`:
 - normalizes the overlaid Dart SDK semver so `pub` accepts the prebuilt bundle
 - writes `env.sh`
 - writes a `flutter-termux` wrapper in `bin/`
-- configures Dart mirror env vars to auto-track the latest Dart mirror release
+- configures engine-stamp keyed Dart mirror env vars to avoid kernel format skew
 
 ## Current Scope
 
@@ -188,6 +190,15 @@ If your Android SDK was not auto-detected, set these in `env.sh`:
 ```bash
 export ANDROID_HOME="$HOME/Android/Sdk"
 export ANDROID_SDK_ROOT="$HOME/Android/Sdk"
+```
+
+Engine-stamp specific mirror variables written by installer:
+
+```bash
+export FLUTTER_TERMUX_ENGINE_STAMP="..."
+export FLUTTER_TERMUX_ARTIFACT_BASE_URL="https://github.com/sirvkrm/flutter-android-bionic-builder/releases/download/<tag>"
+export FLUTTER_TERMUX_DART_ARTIFACT_BASE_URL="https://github.com/sirvkrm/dart-android-bionic-builder/releases/download/<tag>"
+export FLUTTER_TERMUX_DART_SDK_ASSET="dart-sdk-android-arm64-<engine-stamp>.zip"
 ```
 
 If your NDK is installed in Termux build-tools, also set:
