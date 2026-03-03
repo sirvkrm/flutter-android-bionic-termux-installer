@@ -176,9 +176,10 @@ export ANDROID_NDK_HOME="$HOME/.build-tools/android/android-ndk-r27c"
 
 ## Patch Files
 
-The Flutter framework patch applied during install is stored here:
+The Flutter framework patches applied during install are stored here:
 
 - `patches/0001-termux-android-host-support.patch`
+- `patches/0002-termux-android-flutter-cache-support.patch`
 
 ## Limitations
 

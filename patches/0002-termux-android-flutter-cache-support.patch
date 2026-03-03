@@ -1,0 +1,32 @@
+diff --git a/packages/flutter_tools/lib/src/flutter_cache.dart b/packages/flutter_tools/lib/src/flutter_cache.dart
+index f5f1f78..79a209e 100644
+--- a/packages/flutter_tools/lib/src/flutter_cache.dart
++++ b/packages/flutter_tools/lib/src/flutter_cache.dart
+@@ -242,7 +242,7 @@ class FlutterSdk extends EngineCachedArtifact {
+         <String>['windows-$arch', 'windows-$arch/artifacts.zip']
+       else if (_platform.isMacOS)
+         <String>['darwin-x64', 'darwin-$arch/artifacts.zip']
+-      else if (_platform.isLinux)
++      else if (_platform.isLinuxLike)
+         <String>['linux-$arch', 'linux-$arch/artifacts.zip'],
+     ];
+   }
+@@ -348,7 +348,7 @@ class AndroidGenSnapshotArtifacts extends EngineCachedArtifact {
+         ..._windowsBinaryDirs
+       else if (_platform.isMacOS)
+         ..._osxBinaryDirs
+-      else if (_platform.isLinux)
++      else if (_platform.isLinuxLike)
+         ..._linuxBinaryDirs,
+     ];
+   }
+@@ -717,7 +717,8 @@ class FontSubsetArtifacts extends EngineCachedArtifact {
+     if (cache.includeAllPlatforms) {
+       return artifacts.values.toList();
+     } else {
+-      final List<String>? binaryDirs = artifacts[_platform.operatingSystem];
++      final List<String>? binaryDirs =
++          artifacts[_platform.isAndroid ? 'linux' : _platform.operatingSystem];
+       if (binaryDirs == null) {
+         throwToolExit('Unsupported operating system: ${_platform.operatingSystem}');
+       }

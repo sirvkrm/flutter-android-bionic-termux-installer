@@ -7,7 +7,7 @@ DEFAULT_REPO="flutter-android-bionic-builder"
 DEFAULT_INSTALL_ROOT="${PREFIX:-$HOME/.local}/opt/flutter-termux"
 DEFAULT_FLUTTER_REPO="https://github.com/flutter/flutter.git"
 DEFAULT_FLUTTER_REF="3.32.8"
-PATCH_FILE="$SCRIPT_DIR/patches/0001-termux-android-host-support.patch"
+PATCH_DIR="$SCRIPT_DIR/patches"
 
 note() {
   printf '%s\n' "$*"
@@ -441,6 +441,23 @@ apply_patch_if_needed() {
   die "unable to apply $(basename "$patch_file") cleanly in $repo_dir"
 }
 
+apply_patches_if_needed() {
+  local repo_dir=$1
+  local patch_dir=$2
+  local patch_file
+  local -a patch_files=()
+
+  shopt -s nullglob
+  patch_files=("$patch_dir"/*.patch)
+  shopt -u nullglob
+
+  ((${#patch_files[@]} > 0)) || die "no patch files found in $patch_dir"
+
+  for patch_file in "${patch_files[@]}"; do
+    apply_patch_if_needed "$repo_dir" "$patch_file"
+  done
+}
+
 copy_overlay_dir() {
   local src_dir=$1
   local dest_dir=$2
@@ -669,7 +686,7 @@ main() {
 
   flutter_dir=${flutter_dir:-$install_root/flutter}
   ensure_flutter_sdk "$flutter_repo" "$flutter_ref" "$flutter_dir" "$reclone"
-  apply_patch_if_needed "$flutter_dir" "$PATCH_FILE"
+  apply_patches_if_needed "$flutter_dir" "$PATCH_DIR"
   copy_overlay_dir "$bundle_dir/overlay" "$flutter_dir"
   normalize_dart_sdk_semver "$flutter_dir/bin/cache"
   prime_flutter_cache_stamps "$flutter_dir"
