@@ -1,0 +1,34 @@
+diff --git a/packages/flutter_tools/lib/src/cache.dart b/packages/flutter_tools/lib/src/cache.dart
+index 09f453a..803f5f4 100644
+--- a/packages/flutter_tools/lib/src/cache.dart
++++ b/packages/flutter_tools/lib/src/cache.dart
+@@ -222,6 +222,20 @@ class Cache {
+     _artifacts.add(artifactSet);
+   }
+ 
++  List<String> _allowedBaseUrlsForArtifactDownloads() {
++    final List<String> urls = <String>[storageBaseUrl, realmlessStorageBaseUrl, cipdBaseUrl];
++    final String? customBaseUrl = _platform.environment['FLUTTER_TERMUX_ARTIFACT_BASE_URL'];
++    if (customBaseUrl == null || customBaseUrl.isEmpty) {
++      return urls;
++    }
++
++    urls.add(customBaseUrl);
++    if (!customBaseUrl.endsWith('/')) {
++      urls.add('$customBaseUrl/');
++    }
++    return urls;
++  }
++
+   /// This has to be lazy because it requires FLUTTER_ROOT to be initialized.
+   ArtifactUpdater _createUpdater() {
+     return ArtifactUpdater(
+@@ -230,7 +244,7 @@ class Cache {
+       tempStorage: getDownloadDir(),
+       platform: _platform,
+       httpClient: HttpClient(),
+-      allowedBaseUrls: <String>[storageBaseUrl, realmlessStorageBaseUrl, cipdBaseUrl],
++      allowedBaseUrls: _allowedBaseUrlsForArtifactDownloads(),
+     );
+   }
+ 
