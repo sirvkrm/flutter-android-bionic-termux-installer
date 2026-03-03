@@ -1,0 +1,17 @@
+diff --git a/packages/flutter_tools/lib/src/android/android_device_discovery.dart b/packages/flutter_tools/lib/src/android/android_device_discovery.dart
+index 03f3ffa..a036cf4 100644
+--- a/packages/flutter_tools/lib/src/android/android_device_discovery.dart
++++ b/packages/flutter_tools/lib/src/android/android_device_discovery.dart
+@@ -72,6 +72,12 @@ class AndroidDevices extends PollingDeviceDiscovery {
+             '-l',
+           ], throwOnError: true)).stdout.trim();
+     } on ProcessException catch (exception) {
++      if (_platform.isAndroid) {
++        _logger.printTrace(
++          'Ignoring adb discovery failure on Android host: ${exception.message}',
++        );
++        return <AndroidDevice>[];
++      }
+       throwToolExit(
+         'Unable to run "adb", check your Android SDK installation and '
+         '$kAndroidHome environment variable: ${exception.executable}\n'
