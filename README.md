@@ -17,6 +17,8 @@ The installer patches `flutter_tools` so Android-hosted Termux uses the
 `android-arm64` Android snapshot tool cache namespace instead of `linux-x64`.
 It also sets `FLUTTER_TERMUX_ARTIFACT_BASE_URL` in `env.sh`, so Android-host
 snapshot zips can be fetched from this project's GitHub releases if missing.
+The patch set also whitelists this base URL in Flutter's artifact downloader,
+so custom mirror downloads do not emit SDK-bug warnings.
 
 The installer also applies a small Flutter framework patch so the tool treats Termux as a Linux-like host for host-platform selection and Android SDK path discovery.
 
@@ -189,6 +191,7 @@ The Flutter framework patches applied during install are stored here:
 - `patches/0003-termux-android-web-chrome-support.patch`
 - `patches/0004-termux-android-adb-discovery-tolerance.patch`
 - `patches/0005-termux-android-artifact-namespace-and-mirror.patch`
+- `patches/0006-termux-android-allow-custom-artifact-base-url.patch`
 
 ## Limitations
 
