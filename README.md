@@ -12,20 +12,20 @@ It pulls Android-bionic Dart SDK mirror zips from:
 
 The host bundle provides the pieces the stock Flutter SDK does not ship for Android-hosted terminals:
 
-- `bin/cache/dart-sdk` built for Android bionic `aarch64`
-- `bin/cache/artifacts/engine/linux-arm64/font-subset`
-- `bin/cache/artifacts/engine/linux-arm64/const_finder.dart.snapshot`
-- `bin/cache/artifacts/engine/android-*-{profile,release}/android-arm64/gen_snapshot`
+- `bin/cache/dart-sdk` built for Android bionic host arch (`arm64` or `x64`)
+- `bin/cache/artifacts/engine/linux-<host-arch>/font-subset`
+- `bin/cache/artifacts/engine/linux-<host-arch>/const_finder.dart.snapshot`
+- `bin/cache/artifacts/engine/android-*-{profile,release}/android-<host-arch>/gen_snapshot`
 
 The installer patches `flutter_tools` so Android-hosted Termux uses the
-`android-arm64` Android snapshot tool cache namespace instead of `linux-x64`.
+`android-<host-arch>` Android snapshot tool cache namespace instead of `linux-x64`.
 It also sets `FLUTTER_TERMUX_ARTIFACT_BASE_URL` in `env.sh`, so Android-host
 snapshot zips can be fetched from this project's GitHub releases if missing.
 It also sets `FLUTTER_TERMUX_DART_ARTIFACT_BASE_URL` in `env.sh`, so Android
 hosts fetch Dart SDK zips from the Dart mirror repo (same release tag as the
 installed host bundle) instead of Flutter's Google-hosted Linux Dart zip.
 The patch set uses `engine.stamp` to select engine-matched mirror assets for
-`dart-sdk`, `flutter_patched_sdk(_product)`, and `linux-arm64` host tools.
+`dart-sdk`, `flutter_patched_sdk(_product)`, and `linux-<host-arch>` host tools.
 The patch set also whitelists this base URL in Flutter's artifact downloader,
 so custom mirror downloads do not emit SDK-bug warnings.
 
@@ -40,7 +40,7 @@ By default, `./install.sh`:
 - extracts the bundle
 - applies the Termux host compatibility patch
 - auto-reclones the Flutter checkout if a previous local patch state is incompatible with the current patch set
-- clears stale `bin/cache/artifacts/engine/common` and `linux-arm64` cache directories before overlaying
+- clears stale `bin/cache/artifacts/engine/common`, `linux-arm64`, and `linux-x64` cache directories before overlaying
 - overlays the bionic host tools into the Flutter SDK cache
 - normalizes the overlaid Dart SDK semver so `pub` accepts the prebuilt bundle
 - writes `env.sh`
@@ -49,9 +49,10 @@ By default, `./install.sh`:
 
 ## Current Scope
 
-Current validated host bundle target:
+Current validated host bundle targets:
 
 - `arm64` Android / Termux hosts
+- `x64` Android / Termux hosts
 
 This is aimed at running the Flutter tool itself inside Termux. Android target runtime artifacts still come from the normal Flutter cache flow (`flutter precache --android` or first use).
 
@@ -102,19 +103,19 @@ That produces:
 Install a specific tag:
 
 ```bash
-./install.sh --tag v2026.03.02
+./install.sh --tag v2026.03.04
 ```
 
 Choose an asset interactively:
 
 ```bash
-./install.sh --tag v2026.03.02 --interactive
+./install.sh --tag v2026.03.04 --interactive
 ```
 
 Install a specific host bundle asset:
 
 ```bash
-./install.sh --tag v2026.03.02 --asset flutter-android-bionic-termux-host-arm64-20260302.tar.gz
+./install.sh --tag v2026.03.04 --asset flutter-android-bionic-termux-host-x64-20260304.tar.gz
 ```
 
 List release tags:
@@ -197,9 +198,10 @@ Engine-stamp specific mirror variables written by installer:
 
 ```bash
 export FLUTTER_TERMUX_ENGINE_STAMP="..."
+export FLUTTER_TERMUX_HOST_ARCH="arm64|x64"
 export FLUTTER_TERMUX_ARTIFACT_BASE_URL="https://github.com/sirvkrm/flutter-android-bionic-builder/releases/download/<tag>"
 export FLUTTER_TERMUX_DART_ARTIFACT_BASE_URL="https://github.com/sirvkrm/dart-android-bionic-builder/releases/download/<tag>"
-export FLUTTER_TERMUX_DART_SDK_ASSET="dart-sdk-android-arm64-<engine-stamp>.zip"
+export FLUTTER_TERMUX_DART_SDK_ASSET="dart-sdk-android-<host-arch>-<engine-stamp>.zip"
 ```
 
 If your NDK is installed in Termux build-tools, also set:
@@ -223,6 +225,6 @@ The Flutter framework patches applied during install are stored here:
 
 ## Limitations
 
-- The current host bundle is `arm64` only.
+- Host bundles are published per host arch (`arm64` and `x64`).
 - This installer patches the Flutter framework checkout locally; if you switch branches or reset the SDK repo, re-run the installer.
-- The builder repo must publish the `flutter-android-bionic-termux-host-arm64-*.tar.gz` asset for the selected release tag.
+- The builder repo must publish `flutter-android-bionic-termux-host-<host-arch>-*.tar.gz` for the selected release tag.

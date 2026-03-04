@@ -22,7 +22,7 @@ index c3baf95..f8c6aac 100644
  
      final Status status = _logger.startProgress("Running Gradle task '$taskName'...");
      final List<String> command = <String>[
-+      if (_platform.isAndroid && !_platform.isWindows) 'sh',
++      if (_platform.isAndroid && !_platform.isWindows) 'bash',
        gradleExecutablePath,
        ...options, // suppresses gradle output.
        taskName,

@@ -24,8 +24,8 @@ usage() {
 Usage:
   ./install.sh
   ./install.sh --interactive
-  ./install.sh --tag v2026.03.02
-  ./install.sh --asset flutter-android-bionic-termux-host-arm64-20260302.tar.gz
+  ./install.sh --tag v2026.03.04
+  ./install.sh --asset flutter-android-bionic-termux-host-arm64-20260304.tar.gz
   ./install.sh --list-releases
 
 Defaults:
@@ -40,7 +40,7 @@ Options:
   --list-releases      Print available release tags and exit
   --tag TAG            Install from a specific release tag
   --asset NAME         Install a specific host bundle asset from the selected tag
-  --abi ABI            Host arch alias (currently only arm64-v8a)
+  --abi ABI            Host arch alias (arm64-v8a or x86_64)
   --install-root DIR   Override the installation root
   --flutter-dir DIR    Override the Flutter SDK checkout path
   --reclone           Remove any existing Flutter SDK checkout and clone the requested ref again
@@ -171,6 +171,9 @@ detect_host_bundle_arch() {
     aarch64|arm64)
       printf 'arm64\n'
       ;;
+    x86_64|amd64)
+      printf 'x64\n'
+      ;;
     *)
       die "unsupported host architecture for the Termux bundle: $(uname -m)"
       ;;
@@ -181,6 +184,9 @@ normalize_host_bundle_arch() {
   case "${1,,}" in
     arm64|arm64-v8a|aarch64)
       printf 'arm64\n'
+      ;;
+    x64|x86_64|amd64)
+      printf 'x64\n'
       ;;
     *)
       die "unsupported host bundle architecture: $1"
@@ -526,9 +532,17 @@ prime_flutter_cache_stamps() {
 reset_termux_host_artifact_cache_state() {
   local flutter_dir=$1
   local engine_root="$flutter_dir/bin/cache/artifacts/engine"
+  local target=""
+  local host_arch=""
 
   rm -rf "$engine_root/common"
   rm -rf "$engine_root/linux-arm64"
+  rm -rf "$engine_root/linux-x64"
+  for target in android-arm-profile android-arm-release android-arm64-profile android-arm64-release android-x64-profile android-x64-release; do
+    for host_arch in arm64 x64; do
+      rm -rf "$engine_root/$target/android-$host_arch"
+    done
+  done
   rm -f "$flutter_dir/bin/cache/flutter_sdk.stamp"
 }
 
@@ -548,6 +562,7 @@ write_env_file() {
   local engine_stamp=${13}
 
   {
+    printf 'export FLUTTER_TERMUX_HOST_ARCH="%s"\n' "$host_arch"
     printf 'export FLUTTER_TERMUX_HOME="%s"\n' "$install_root"
     printf 'export FLUTTER_TERMUX_RELEASE_TAG="%s"\n' "$tag"
     printf 'export FLUTTER_TERMUX_ASSET="%s"\n' "$asset"

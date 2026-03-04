@@ -59,7 +59,7 @@ index 9ab6151..3259d31 100755
 +      DART_SDK_URL="$FLUTTER_TERMUX_DART_SDK_URL"
 +      DART_SDK_FALLBACK_URL=""
 +    else
-+      DART_SDK_BASE_URL="${FLUTTER_TERMUX_DART_ARTIFACT_BASE_URL:-https://github.com/sirvkrm/dart-android-bionic-builder/releases/download/${FLUTTER_TERMUX_RELEASE_TAG:-v2026.03.03}}"
++      DART_SDK_BASE_URL="${FLUTTER_TERMUX_DART_ARTIFACT_BASE_URL:-https://github.com/sirvkrm/dart-android-bionic-builder/releases/download/${FLUTTER_TERMUX_RELEASE_TAG:-v2026.03.04}}"
 +      DART_SDK_URL="$DART_SDK_BASE_URL/$DART_ZIP_NAME"
 +      if [ -n "$DART_ZIP_FALLBACK_NAME" ] && [ "$DART_ZIP_FALLBACK_NAME" != "$DART_ZIP_NAME" ]; then
 +        DART_SDK_FALLBACK_URL="$DART_SDK_BASE_URL/$DART_ZIP_FALLBACK_NAME"
@@ -172,7 +172,7 @@ index 9f19af3..130ed5b 100644
 +    if (explicit != null && explicit.isNotEmpty) {
 +      return explicit;
 +    }
-+    final String tag = _platform.environment['FLUTTER_TERMUX_RELEASE_TAG'] ?? 'v2026.03.03';
++    final String tag = _platform.environment['FLUTTER_TERMUX_RELEASE_TAG'] ?? 'v2026.03.04';
 +    return 'https://github.com/sirvkrm/flutter-android-bionic-builder/releases/download/$tag';
 +  }
 +

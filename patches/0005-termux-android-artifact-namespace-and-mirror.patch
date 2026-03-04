@@ -2,16 +2,23 @@ diff --git a/packages/flutter_tools/lib/src/artifacts.dart b/packages/flutter_to
 index eeb0616..1d51b50 100644
 --- a/packages/flutter_tools/lib/src/artifacts.dart
 +++ b/packages/flutter_tools/lib/src/artifacts.dart
-@@ -601,11 +601,26 @@ class CachedArtifacts implements Artifacts {
+@@ -601,11 +601,33 @@ class CachedArtifacts implements Artifacts {
            hostPlatform = HostPlatform.darwin_x64;
          }
  
 -        final String hostPlatformName = getNameForHostPlatform(hostPlatform);
 +        final String artifactFileName = _artifactToFileName(artifact, _platform)!;
-+        if (_platform.isAndroid && hostPlatform == HostPlatform.linux_arm64) {
++        final bool useTermuxAndroidHostNamespace =
++            _platform.isAndroid &&
++            (hostPlatform == HostPlatform.linux_arm64 ||
++                hostPlatform == HostPlatform.linux_x64);
++        final String termuxHostArch =
++            _platform.environment['FLUTTER_TERMUX_HOST_ARCH'] ??
++            (hostPlatform == HostPlatform.linux_x64 ? 'x64' : 'arm64');
++        if (useTermuxAndroidHostNamespace) {
 +          final String androidHostPath = _fileSystem.path.join(
 +            engineDir,
-+            'android-arm64',
++            'android-$termuxHostArch',
 +            artifactFileName,
 +          );
 +          if (_fileSystem.file(androidHostPath).existsSync()) {
@@ -20,8 +27,8 @@ index eeb0616..1d51b50 100644
 +        }
 +
 +        final String hostPlatformName =
-+            (_platform.isAndroid && hostPlatform == HostPlatform.linux_arm64)
-+                ? 'android-arm64'
++            useTermuxAndroidHostNamespace
++                ? 'android-$termuxHostArch'
 +                : getNameForHostPlatform(hostPlatform);
          return _fileSystem.path.join(
            engineDir,
@@ -85,7 +92,7 @@ diff --git a/packages/flutter_tools/lib/src/flutter_cache.dart b/packages/flutte
 index 294ccba..9f19af3 100644
 --- a/packages/flutter_tools/lib/src/flutter_cache.dart
 +++ b/packages/flutter_tools/lib/src/flutter_cache.dart
-@@ -336,8 +336,38 @@ class AndroidGenSnapshotArtifacts extends EngineCachedArtifact {
+@@ -336,8 +336,46 @@ class AndroidGenSnapshotArtifacts extends EngineCachedArtifact {
    @override
    List<String> getPackageDirs() => const <String>[];
  
@@ -94,31 +101,39 @@ index 294ccba..9f19af3 100644
 +    if (explicit != null && explicit.isNotEmpty) {
 +      return explicit;
 +    }
-+    final String tag = _platform.environment['FLUTTER_TERMUX_RELEASE_TAG'] ?? 'v2026.03.03';
++    final String tag = _platform.environment['FLUTTER_TERMUX_RELEASE_TAG'] ?? 'v2026.03.04';
 +    return 'https://github.com/sirvkrm/flutter-android-bionic-builder/releases/download/$tag';
 +  }
 +
-+  List<List<String>> _androidHostBinaryDirs(String baseUrl) {
++  String _termuxHostArch() {
++    final String? explicit = _platform.environment['FLUTTER_TERMUX_HOST_ARCH'];
++    if (explicit != null && explicit.isNotEmpty) {
++      return explicit;
++    }
++    return cache.getHostPlatformArchName();
++  }
++
++  List<List<String>> _androidHostBinaryDirs(String baseUrl, String hostArch) {
 +    return <List<String>>[
-+      <String>['android-arm-profile/android-arm64', '$baseUrl/android-arm-profile-android-arm64.zip'],
-+      <String>['android-arm-release/android-arm64', '$baseUrl/android-arm-release-android-arm64.zip'],
++      <String>['android-arm-profile/android-$hostArch', '$baseUrl/android-arm-profile-android-$hostArch.zip'],
++      <String>['android-arm-release/android-$hostArch', '$baseUrl/android-arm-release-android-$hostArch.zip'],
 +      <String>[
-+        'android-arm64-profile/android-arm64',
-+        '$baseUrl/android-arm64-profile-android-arm64.zip',
++        'android-arm64-profile/android-$hostArch',
++        '$baseUrl/android-arm64-profile-android-$hostArch.zip',
 +      ],
 +      <String>[
-+        'android-arm64-release/android-arm64',
-+        '$baseUrl/android-arm64-release-android-arm64.zip',
++        'android-arm64-release/android-$hostArch',
++        '$baseUrl/android-arm64-release-android-$hostArch.zip',
 +      ],
-+      <String>['android-x64-profile/android-arm64', '$baseUrl/android-x64-profile-android-arm64.zip'],
-+      <String>['android-x64-release/android-arm64', '$baseUrl/android-x64-release-android-arm64.zip'],
++      <String>['android-x64-profile/android-$hostArch', '$baseUrl/android-x64-profile-android-$hostArch.zip'],
++      <String>['android-x64-release/android-$hostArch', '$baseUrl/android-x64-release-android-$hostArch.zip'],
 +    ];
 +  }
 +
    @override
    List<List<String>> getBinaryDirs() {
 +    if (_platform.isAndroid) {
-+      return _androidHostBinaryDirs(_termuxAndroidArtifactsBaseUrl());
++      return _androidHostBinaryDirs(_termuxAndroidArtifactsBaseUrl(), _termuxHostArch());
 +    }
 +
      return <List<String>>[
