@@ -1,0 +1,28 @@
+diff --git a/packages/flutter_tools/lib/src/android/gradle.dart b/packages/flutter_tools/lib/src/android/gradle.dart
+index c3baf95..f8c6aac 100644
+--- a/packages/flutter_tools/lib/src/android/gradle.dart
++++ b/packages/flutter_tools/lib/src/android/gradle.dart
+@@ -171,6 +171,7 @@ class AndroidGradleBuilder implements AndroidBuilder {
+        _artifacts = artifacts,
+        _analytics = analytics,
+        _gradleUtils = gradleUtils,
++       _platform = platform,
+        _androidStudio = androidStudio,
+        _fileSystemUtils = FileSystemUtils(fileSystem: fileSystem, platform: platform),
+        _processUtils = ProcessUtils(logger: logger, processManager: processManager);
+@@ -182,6 +183,7 @@ class AndroidGradleBuilder implements AndroidBuilder {
+   final Artifacts _artifacts;
+   final Analytics _analytics;
+   final GradleUtils _gradleUtils;
++  final Platform _platform;
+   final FileSystemUtils _fileSystemUtils;
+   final AndroidStudio? _androidStudio;
+ 
+@@ -332,6 +334,7 @@ class AndroidGradleBuilder implements AndroidBuilder {
+ 
+     final Status status = _logger.startProgress("Running Gradle task '$taskName'...");
+     final List<String> command = <String>[
++      if (_platform.isAndroid && !_platform.isWindows) 'sh',
+       gradleExecutablePath,
+       ...options, // suppresses gradle output.
+       taskName,
