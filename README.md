@@ -219,6 +219,7 @@ The Flutter framework patches applied during install are stored here:
 - `patches/0005-termux-android-artifact-namespace-and-mirror.patch`
 - `patches/0006-termux-android-allow-custom-artifact-base-url.patch`
 - `patches/0007-termux-android-dart-sdk-mirror.patch`
+- `patches/0008-termux-android-gradle-wrapper-shell.patch`
 
 ## Limitations
 
